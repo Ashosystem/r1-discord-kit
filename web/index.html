@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=240, initial-scale=1.0, user-scalable=no">
+<title>r1-discord</title>
+<style>
+:root {
+  --bg:      #0e0e0e;
+  --surface: #1a1a1a;
+  --border:  #2a2a2a;
+  --text:    #e0e0e0;
+  --dim:     #888888;
+  --accent:  #4a9eff;
+  --own-msg: #2a4a8f;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body {
+  width: 240px; height: 282px;
+  overflow: hidden;
+  background: var(--bg); color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-size: 13px;
+  touch-action: manipulation;
+}
+.screen { position: absolute; inset: 0; display: none; flex-direction: column; overflow: hidden; }
+.screen.active { display: flex; }
+
+.header {
+  flex-shrink: 0;
+  height: 36px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  padding: 0 8px;
+  gap: 4px;
+}
+.header-title {
+  font-weight: 700; font-size: 12px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  flex: 1; min-width: 0;
+}
+.back-btn {
+  background: none; border: none; color: var(--accent);
+  font-size: 20px; cursor: pointer; padding: 0 2px; line-height: 1;
+  flex-shrink: 0;
+}
+.genre-btn {
+  flex-shrink: 0;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 3px 6px;
+  border-radius: 5px;
+  border: 1px solid var(--accent);
+  background: transparent;
+  color: var(--accent);
+  cursor: pointer;
+  font-family: inherit;
+  line-height: 1;
+  max-width: 52px;
+  white-space: nowrap;
+}
+.log-open-btn {
+  flex-shrink: 0;
+  font-size: 9px;
+  font-weight: 700;
+  padding: 3px 5px;
+  border-radius: 5px;
+  border: 1px solid var(--dim);
+  background: transparent;
+  color: var(--dim);
+  cursor: pointer;
+  font-family: inherit;
+  line-height: 1;
+  white-space: nowrap;
+}
+.log-open-btn--narrow { max-width: 34px; padding: 3px 4px; overflow: hidden; }
+
+.log-clear-btn {
+  flex-shrink: 0;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 5px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--dim);
+  cursor: pointer;
+  font-family: inherit;
+}
+
+#log-list {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 6px 8px 8px;
+  font-family: ui-monospace, 'Cascadia Code', monospace;
+  font-size: 9px;
+  line-height: 1.35;
+  word-break: break-word;
+  color: var(--dim);
+}
+#log-list::-webkit-scrollbar { width: 3px; }
+#log-list::-webkit-scrollbar-thumb { background: var(--border); }
+.log-line { color: var(--text); margin-bottom: 3px; }
+.log-line:last-child { margin-bottom: 0; }
+.log-line.log-warn { color: #daa520; }
+.log-line.log-error { color: #e07070; }
+
+.scroll-area { flex: 1; overflow-y: auto; overflow-x: hidden; }
+.scroll-area::-webkit-scrollbar { width: 3px; }
+.scroll-area::-webkit-scrollbar-thumb { background: var(--border); }
+
+.guild-item {
+  display: flex;
+  align-items: center;
+  padding: 8px 10px;
+  cursor: pointer;
+  gap: 10px;
+  border-bottom: 1px solid var(--border);
+}
+.guild-item.selected { background: var(--surface); }
+.guild-icon {
+  width: 36px; height: 36px; border-radius: 50%;
+  background: var(--border);
+  flex-shrink: 0;
+  object-fit: cover;
+}
+.guild-icon-placeholder {
+  width: 36px; height: 36px; border-radius: 50%;
+  background: var(--accent);
+  flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 14px; font-weight: 700; color: #fff;
+}
+.guild-name {
+  font-size: 12px; font-weight: 600;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
+.category-header {
+  padding: 6px 10px 2px;
+  font-size: 10px; font-weight: 700;
+  color: var(--dim);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.channel-item {
+  padding: 6px 10px;
+  cursor: pointer;
+  font-size: 12px;
+  color: var(--dim);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.channel-item::before { content: '# '; }
+.channel-item.selected { background: var(--surface); color: var(--accent); }
+
+#message-list {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 6px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+#message-list::-webkit-scrollbar { width: 3px; }
+#message-list::-webkit-scrollbar-thumb { background: var(--border); }
+
+.message-bubble {
+  max-width: 85%; padding: 5px 8px; border-radius: 10px;
+  background: var(--surface); align-self: flex-start;
+  word-break: break-word; font-size: 12px; line-height: 1.4;
+}
+.message-bubble.own { align-self: flex-end; background: var(--own-msg); }
+.message-bubble.has-photo { max-width: 96%; }
+.message-author { font-size: 10px; font-weight: 700; color: var(--accent); margin-bottom: 2px; }
+.message-time   { font-size: 9px;  color: var(--dim); text-align: right; margin-top: 2px; }
+.voice-label { font-size: 10px; color: var(--dim); margin-bottom: 3px; }
+.msg-audio { margin-top: 2px; min-width: 0; width: 100%; }
+
+.compose-bar {
+  flex-shrink: 0;
+  height: 40px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  padding: 0 8px;
+}
+.compose-open-btn {
+  flex: 1; height: 28px;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 14px;
+  color: var(--dim); font-size: 12px; cursor: pointer;
+  text-align: left; padding: 0 12px;
+}
+
+#compose-textarea {
+  flex: 1;
+  background: var(--bg);
+  border: none; outline: none;
+  color: var(--text);
+  font-family: inherit; font-size: 13px;
+  padding: 10px;
+  resize: none;
+  line-height: 1.4;
+}
+
+.compose-actions {
+  flex-shrink: 0;
+  height: 40px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  gap: 8px;
+  padding: 0 8px;
+  align-items: center;
+}
+.btn {
+  flex: 1; height: 28px;
+  border: 1px solid var(--border); border-radius: 6px;
+  font-size: 12px; cursor: pointer; font-family: inherit;
+}
+.btn-cancel { background: var(--surface); color: var(--dim); }
+.btn-send   { background: var(--accent); color: #fff; border-color: var(--accent); font-weight: 700; }
+.btn-send:disabled { opacity: 0.5; }
+.btn-tag {
+  flex: 0 0 38px; height: 28px;
+  border: 1px solid var(--accent); border-radius: 6px;
+  background: transparent; color: var(--accent);
+  font-size: 13px; font-weight: 800; cursor: pointer; font-family: inherit; padding: 0; line-height: 1;
+}
+.compose-actions { gap: 6px; }
+.btn-cancel, .btn-send { flex: 1; min-width: 0; }
+
+.member-search-wrap {
+  flex-shrink: 0; padding: 6px 8px; border-bottom: 1px solid var(--border);
+}
+#member-search-input {
+  width: 100%; height: 28px;
+  background: var(--bg); border: 1px solid var(--border); border-radius: 6px;
+  color: var(--text); font-size: 12px; padding: 0 8px; font-family: inherit;
+  outline: none;
+}
+.member-picker-item {
+  display: flex; align-items: center; gap: 8px;
+  padding: 6px 10px; cursor: pointer;
+  border-bottom: 1px solid var(--border); font-size: 12px;
+}
+.member-picker-item.selected { background: var(--surface); }
+.member-picker-item .mp-av {
+  width: 28px; height: 28px; border-radius: 50%; background: var(--border); flex-shrink: 0;
+  object-fit: cover;
+}
+.mp-meta { min-width: 0; flex: 1; }
+.member-picker-item .mp-name {
+  font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.member-picker-item .mp-sub {
+  font-size: 10px; color: var(--dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
+#loading-overlay {
+  position: absolute; inset: 0;
+  background: var(--bg);
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  gap: 8px;
+  z-index: 100;
+}
+#loading-overlay.hidden { display: none; }
+#loading-text { font-size: 12px; color: var(--dim); }
+.spinner {
+  width: 20px; height: 20px;
+  border: 2px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+#recording-indicator {
+  position: absolute;
+  top: 36px; left: 0; right: 0;
+  height: 26px;
+  background: rgba(200, 30, 30, 0.92);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 11px; color: #fff; font-weight: 700;
+  letter-spacing: 0.5px;
+  z-index: 50;
+  opacity: 0; pointer-events: none;
+  transition: opacity 0.15s;
+}
+#recording-indicator.active { opacity: 1; }
+
+#toast {
+  position: absolute; bottom: 48px; left: 50%;
+  transform: translateX(-50%);
+  background: #333; color: var(--text);
+  padding: 5px 12px; border-radius: 12px;
+  font-size: 11px;
+  white-space: normal;
+  max-width: 216px;
+  text-align: center;
+  opacity: 0; pointer-events: none;
+  transition: opacity 0.2s;
+  z-index: 350;
+}
+#toast.show { opacity: 1; }
+
+#genre-banner {
+  display: none;
+  flex-shrink: 0;
+  padding: 3px 8px;
+  font-size: 10px;
+  line-height: 1.25;
+  color: #faa;
+  background: rgba(60, 25, 25, 0.85);
+  border-bottom: 1px solid #522;
+}
+#genre-banner:empty { display: none !important; }
+</style>
+</head>
+<body>
+
+<div id="screen-guilds" class="screen">
+  <div class="header">
+    <div class="header-title">Servers</div>
+    <button type="button" class="log-open-btn" id="guilds-log-btn">Log</button>
+  </div>
+  <div class="scroll-area" id="guild-list"></div>
+</div>
+
+<div id="screen-channels" class="screen">
+  <div class="header">
+    <button type="button" class="back-btn" id="channels-back-btn">&#8249;</button>
+    <div class="header-title" id="server-name">Discord</div>
+    <button type="button" class="log-open-btn" id="channels-log-btn">Log</button>
+  </div>
+  <div class="scroll-area" id="channel-list"></div>
+</div>
+
+<div id="screen-messages" class="screen">
+  <div class="header">
+    <button type="button" class="back-btn" id="back-btn">&#8249;</button>
+    <div class="header-title" id="channel-title"></div>
+    <button type="button" class="log-open-btn log-open-btn--narrow" id="messages-log-btn">Log</button>
+    <button type="button" class="genre-btn" id="genre-explore-btn">Genre</button>
+  </div>
+  <div id="genre-banner"></div>
+  <div id="message-list"></div>
+  <div class="compose-bar">
+    <button type="button" class="compose-open-btn" id="open-compose-btn">Type a message…</button>
+  </div>
+</div>
+
+<div id="screen-log" class="screen">
+  <div class="header">
+    <button type="button" class="back-btn" id="log-back-btn">&#8249;</button>
+    <div class="header-title">Log</div>
+    <button type="button" class="log-clear-btn" id="log-clear-btn">Clear</button>
+  </div>
+  <div id="log-list" aria-live="polite" aria-relevant="additions"></div>
+</div>
+
+<div id="screen-compose" class="screen">
+  <div class="header">
+    <div class="header-title" id="compose-channel-name"></div>
+  </div>
+  <textarea
+    id="compose-textarea"
+    placeholder="Type a message…"
+    spellcheck="false"
+    autocorrect="off"
+    autocapitalize="sentences"
+    autocomplete="off"
+  ></textarea>
+  <div class="compose-actions">
+    <button type="button" class="btn btn-cancel" id="cancel-btn">Cancel</button>
+    <button type="button" class="btn-tag" id="tag-user-btn" title="Pick user">@</button>
+    <button type="button" class="btn btn-send" id="send-btn">Send</button>
+  </div>
+</div>
+
+<div id="screen-mention" class="screen">
+  <div class="header">
+    <button type="button" class="back-btn" id="mention-back-btn">&#8249;</button>
+    <div class="header-title">Pick user</div>
+  </div>
+  <div class="member-search-wrap">
+    <input
+      id="member-search-input"
+      type="text"
+      placeholder="Starts with…"
+      autocomplete="off"
+      autocorrect="off"
+      autocapitalize="off"
+      spellcheck="false"
+    />
+  </div>
+  <div class="scroll-area" id="member-picker-list"></div>
+</div>
+
+<div id="recording-indicator">&#9679; RECORDING</div>
+
+<div id="loading-overlay">
+  <div class="spinner"></div>
+  <div id="loading-text">Connecting…</div>
+</div>
+
+<div id="toast"></div>
+
+<script defer src="./app.js?v=r1dh3"></script>
+</body>
+</html>

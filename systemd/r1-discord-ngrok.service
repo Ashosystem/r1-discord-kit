@@ -1,0 +1,19 @@
+[Unit]
+Description=ngrok HTTP tunnel for r1-discord-kit (free plan — README Step 6)
+Documentation=https://ngrok.com/docs
+After=network-online.target r1-discord-kit.service
+Wants=network-online.target
+Requires=r1-discord-kit.service
+
+[Service]
+Type=simple
+Environment=PATH=%h/.local/bin:/home/linuxbrew/.linuxbrew/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin
+Environment=NGROK_LOCAL_PORT=3002
+# Optional override; otherwise NGROK_DOMAIN is read from WorkingDirectory:.env inside the script.
+# Environment=NGROK_DOMAIN=juicy-vicissitudinous-lachlan.ngrok-free.dev
+ExecStart=%h/Dokumenter/r1-discord-kit-main/scripts/run-ngrok-tunnel.sh
+Restart=always
+RestartSec=8
+
+[Install]
+WantedBy=default.target

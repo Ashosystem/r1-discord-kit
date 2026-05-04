@@ -1,0 +1,5 @@
+# Netlify plain-text headers (alongside netlify.toml)
+/auto-backend.json
+  Cache-Control: no-store
+/app.js
+  Cache-Control: public, max-age=0, must-revalidate

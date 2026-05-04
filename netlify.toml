@@ -1,0 +1,17 @@
+[build]
+  command = "npm run build:web"
+  publish = "web"
+  # Optional: Discord API HTTPS URL so the Creations QR does not need ?backend=
+  # With ngrok NGROK_DOMAIN (reserved hostname), paste that stable HTTPS URL once.
+  # Random free tier: redeploy or ?backend= when the tunnel hostname changes.
+  # R1_DISCORD_BACKEND_URL = "https://juicy-vicissitudinous-lachlan.ngrok-free.dev"
+
+[[headers]]
+  for = "/index.html"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"
+
+[[headers]]
+  for = "/app.js"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"

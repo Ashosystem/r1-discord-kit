@@ -1,0 +1,16 @@
+[Unit]
+Description=r1-discord-kit Discord UI server (for Rabbit R1)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/Dokumenter/r1-discord-kit-main
+# PATH so node is found (system /usr/bin/node, Homebrew, mise, etc.)
+Environment=PATH=/home/linuxbrew/.linuxbrew/bin:/usr/local/bin:/usr/bin
+ExecStart=/usr/bin/env node server.js
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=default.target

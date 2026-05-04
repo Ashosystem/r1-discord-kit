@@ -1,0 +1,17 @@
+[Unit]
+Description=Cloudflare Try tunnel for r1-discord-kit (no account — README Step 6)
+Documentation=https://developers.cloudflare.com/cloudflare-one/connections/connect-apps/
+After=network-online.target r1-discord-kit.service
+Wants=network-online.target
+Requires=r1-discord-kit.service
+
+[Service]
+Type=simple
+Environment=PATH=/home/linuxbrew/.linuxbrew/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin
+Environment=CLOUDFLARED_LOCAL_PORT=3002
+ExecStart=%h/Dokumenter/r1-discord-kit-main/scripts/run-cloudflared-quick-tunnel.sh
+Restart=always
+RestartSec=8
+
+[Install]
+WantedBy=default.target
