@@ -69,25 +69,68 @@ function formatMessage(msg) {
   const images = attachments
     .filter(a => a.contentType?.startsWith('image/') || /\.(jpg|jpeg|png|gif|webp)$/i.test(a.name || ''))
     .map(a => a.url);
+
+  const isSystem = msg.type !== 0 && msg.type !== 'Default';
+  let systemContent = '';
+  if (isSystem) {
+    const name = msg.member?.displayName || msg.author.username;
+    switch (String(msg.type)) {
+      case '1':  case 'RecipientAdd':    systemContent = `${name} joined`; break;
+      case '2':  case 'RecipientRemove': systemContent = `${name} left`; break;
+      case '6':  case 'UserPremiumGuildSubscription': systemContent = `${name} boosted the server`; break;
+      case '7':  case 'UserPremiumGuildSubscriptionTier1': systemContent = `${name} boosted (Tier 1)`; break;
+      case '8':  case 'UserPremiumGuildSubscriptionTier2': systemContent = `${name} boosted (Tier 2)`; break;
+      case '9':  case 'UserPremiumGuildSubscriptionTier3': systemContent = `${name} boosted (Tier 3)`; break;
+      case '12': case 'GuildMemberJoin': systemContent = `${name} joined the server`; break;
+      default:   systemContent = msg.content || `[system message]`; break;
+    }
+  }
+
+  const reactions = [...msg.reactions.cache.values()].map(r => ({
+    emoji: r.emoji.name || r.emoji.toString(),
+    count: r.count,
+  }));
+
   return {
-    id:        msg.id,
-    author:    msg.author.username,
-    authorId:  msg.author.id,
-    content:   msg.content,
-    timestamp: msg.createdTimestamp,
-    isOwn:     msg.author.id === client.user.id,
-    hasAudio:  attachments.some(a => a.contentType?.startsWith('audio/')),
+    id:            msg.id,
+    author:        msg.member?.displayName || msg.author.username,
+    authorId:      msg.author.id,
+    avatarURL:     msg.author.displayAvatarURL({ size: 32, extension: 'webp' }),
+    content:       msg.content,
+    timestamp:     msg.createdTimestamp,
+    isOwn:         msg.author.id === client.user.id,
+    mentionsMe:    msg.mentions.users.has(client.user.id),
+    isSystem,
+    systemContent,
+    reactions,
+    replyTo:       null, // populated async by buildMessage
+    hasAudio:      attachments.some(a => a.contentType?.startsWith('audio/')),
     images,
   };
+}
+
+async function buildMessage(msg) {
+  const base = formatMessage(msg);
+  if (msg.reference?.messageId) {
+    try {
+      const ref = await msg.fetchReference();
+      base.replyTo = {
+        author:  ref.member?.displayName || ref.author.username,
+        content: (ref.content || '[attachment]').slice(0, 80),
+      };
+    } catch {}
+  }
+  return base;
 }
 
 client.on('channelCreate', (ch) => { if (GUILD_IDS.includes(ch.guildId)) refreshGuildCache(ch.guildId); });
 client.on('channelDelete', (ch) => { if (GUILD_IDS.includes(ch.guildId)) refreshGuildCache(ch.guildId); });
 client.on('channelUpdate', (_, ch) => { if (GUILD_IDS.includes(ch.guildId)) refreshGuildCache(ch.guildId); });
 
-client.on('messageCreate', (message) => {
+client.on('messageCreate', async (message) => {
   if (!GUILD_IDS.includes(message.guildId)) return;
-  const payload = JSON.stringify({ type: 'new_message', guildId: message.guildId, channelId: message.channelId, message: formatMessage(message) });
+  const formatted = await buildMessage(message);
+  const payload = JSON.stringify({ type: 'new_message', guildId: message.guildId, channelId: message.channelId, message: formatted });
   wsClients.forEach(ws => { if (ws.readyState === 1) ws.send(payload); });
 });
 
@@ -127,7 +170,8 @@ app.get('/channels/:id/messages', authMiddleware, async (req, res) => {
     const channel = await client.channels.fetch(req.params.id);
     if (!channel || !GUILD_IDS.includes(channel.guildId)) return res.status(404).json({ error: 'Not found' });
     const fetched = await channel.messages.fetch({ limit });
-    res.json([...fetched.values()].reverse().map(formatMessage));
+    const msgs = await Promise.all([...fetched.values()].reverse().map(buildMessage));
+    res.json(msgs);
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -150,7 +194,7 @@ app.post('/channels/:id/send', authMiddleware, async (req, res) => {
     const channel = await client.channels.fetch(req.params.id);
     if (!channel || !GUILD_IDS.includes(channel.guildId)) return res.status(404).json({ error: 'Not found' });
     const sent = await channel.send(content.trim());
-    res.json({ ok: true, message: formatMessage(sent) });
+    res.json({ ok: true, message: await buildMessage(sent) });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 

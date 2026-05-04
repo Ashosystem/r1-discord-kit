@@ -92,9 +92,14 @@ html, body {
   font-size: 12px;
   color: var(--dim);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  display: flex; align-items: center; justify-content: space-between;
 }
-.channel-item::before { content: '# '; }
+.channel-item-name::before { content: '# '; }
 .channel-item.selected { background: var(--surface); color: var(--accent); }
+.unread-dot {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: var(--accent); flex-shrink: 0; margin-left: 4px;
+}
 
 #message-list {
   flex: 1;
@@ -108,8 +113,29 @@ html, body {
 #message-list::-webkit-scrollbar { width: 3px; }
 #message-list::-webkit-scrollbar-thumb { background: var(--border); }
 
+.msg-row {
+  display: flex; align-items: flex-end; gap: 5px;
+}
+.msg-row.own { flex-direction: row-reverse; }
+.msg-row.grouped { padding-left: 29px; }
+.msg-row.own.grouped { padding-left: 0; padding-right: 0; }
+
+.msg-avatar {
+  width: 24px; height: 24px; border-radius: 50%;
+  flex-shrink: 0; object-fit: cover;
+  background: var(--border);
+  align-self: flex-end;
+}
+.msg-avatar-placeholder {
+  width: 24px; height: 24px; border-radius: 50%;
+  flex-shrink: 0; background: var(--accent);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 10px; font-weight: 700; color: #fff;
+  align-self: flex-end;
+}
+
 .message-bubble {
-  max-width: 85%; padding: 5px 8px; border-radius: 10px;
+  max-width: 78%; padding: 5px 8px; border-radius: 10px;
   background: var(--surface); align-self: flex-start;
   word-break: break-word; font-size: 12px; line-height: 1.4;
 }
@@ -117,6 +143,40 @@ html, body {
 .message-bubble.has-photo { max-width: 96%; }
 .message-author { font-size: 10px; font-weight: 700; color: var(--accent); margin-bottom: 2px; }
 .message-time   { font-size: 9px;  color: var(--dim); text-align: right; margin-top: 2px; }
+.message-bubble.mention { background: rgba(74,158,255,0.18); border-left: 2px solid var(--accent); }
+.message-bubble.own.mention { border-left: none; border-right: 2px solid var(--accent); }
+
+.msg-reply {
+  font-size: 10px; color: var(--dim);
+  border-left: 2px solid var(--dim);
+  padding: 2px 5px; margin-bottom: 3px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.msg-reply-author { color: var(--accent); font-weight: 700; margin-right: 4px; }
+
+.msg-reactions { display: flex; flex-wrap: wrap; gap: 3px; margin-top: 3px; }
+.msg-reaction {
+  display: flex; align-items: center; gap: 2px;
+  background: var(--border); border-radius: 8px;
+  padding: 1px 5px; font-size: 10px; color: var(--text);
+}
+
+.system-msg {
+  text-align: center; font-size: 10px; color: var(--dim);
+  padding: 2px 8px; font-style: italic;
+}
+
+#new-msg-banner {
+  position: absolute;
+  bottom: 44px; left: 50%;
+  transform: translateX(-50%);
+  background: var(--accent); color: #fff;
+  padding: 4px 12px; border-radius: 12px;
+  font-size: 11px; font-weight: 700;
+  cursor: pointer; z-index: 30;
+  display: none;
+  white-space: nowrap;
+}
 
 .compose-bar {
   flex-shrink: 0;
@@ -234,6 +294,7 @@ html, body {
     <div class="header-title" id="channel-title"></div>
   </div>
   <div id="message-list"></div>
+  <div id="new-msg-banner">↓ New messages</div>
   <div class="compose-bar">
     <button class="compose-open-btn" id="open-compose-btn">Type a message…</button>
   </div>
@@ -288,6 +349,7 @@ let ws               = null;
 let wsReconnectDelay = 1000;
 let recognition      = null;
 let isRecording      = false;
+const unreadChannels = new Set();
 
 // ── 3. DOM refs ───────────────────────────────────────────────────────────────
 const $ = id => document.getElementById(id);
@@ -298,6 +360,7 @@ const toastEl       = $('toast');
 const guildListEl   = $('guild-list');
 const channelListEl = $('channel-list');
 const messageListEl = $('message-list');
+const newMsgBanner  = $('new-msg-banner');
 const composeTA     = $('compose-textarea');
 
 // ── R1 native STT bridge ──────────────────────────────────────────────────────
@@ -379,7 +442,8 @@ function renderChannelList() {
       html += '<div class="category-header">' + escapeHtml(ch.category) + '</div>';
       lastCat = ch.category;
     }
-    html += '<div class="channel-item' + (i === selectedIdx ? ' selected' : '') + '" data-idx="' + i + '">' + escapeHtml(ch.name) + '</div>';
+    const dot = unreadChannels.has(ch.id) ? '<span class="unread-dot"></span>' : '';
+    html += '<div class="channel-item' + (i === selectedIdx ? ' selected' : '') + '" data-idx="' + i + '"><span class="channel-item-name">' + escapeHtml(ch.name) + '</span>' + dot + '</div>';
   });
   channelListEl.innerHTML = html;
   const sel = channelListEl.querySelector('.selected');
@@ -388,36 +452,65 @@ function renderChannelList() {
 
 // ── 11. renderMessages ────────────────────────────────────────────────────────
 function renderMessages() {
-  messageListEl.innerHTML = messages.map(bubbleHtml).join('');
+  messageListEl.innerHTML = messages.map((m, i) => bubbleHtml(m, messages[i - 1])).join('');
   scrollToBottom();
 }
 
-function bubbleHtml(m) {
+function avatarHtml(m) {
+  if (m.avatarURL) return `<img class="msg-avatar" src="${escapeHtml(m.avatarURL)}" loading="lazy">`;
+  return `<div class="msg-avatar-placeholder">${escapeHtml((m.author || '?')[0].toUpperCase())}</div>`;
+}
+
+function bubbleHtml(m, prev) {
+  if (m.isSystem) {
+    return `<div class="system-msg">${escapeHtml(m.systemContent || '')}</div>`;
+  }
+  const grouped = !m.isOwn && prev && !prev.isSystem && prev.authorId === m.authorId && !m.replyTo;
   const textBody = m.hasAudio ? '🎤 Voice message' : escapeHtml(m.content || '');
   const hasImgs  = (m.images || []).length > 0;
   const imgs = (m.images || []).map(url =>
     `<img src="${escapeHtml(url)}" style="max-width:100%;border-radius:5px;margin-top:3px;display:block;" loading="lazy">`
   ).join('');
-  return `<div class="message-bubble${m.isOwn ? ' own' : ''}${hasImgs ? ' has-photo' : ''}">`
-    + (m.isOwn ? '' : `<div class="message-author">${escapeHtml(m.author)}</div>`)
+  const replyHtml = m.replyTo
+    ? `<div class="msg-reply"><span class="msg-reply-author">${escapeHtml(m.replyTo.author)}</span>${escapeHtml(m.replyTo.content)}</div>`
+    : '';
+  const reactHtml = (m.reactions || []).length
+    ? `<div class="msg-reactions">${m.reactions.map(r => `<span class="msg-reaction">${escapeHtml(r.emoji)} ${r.count}</span>`).join('')}</div>`
+    : '';
+  const mentionClass = m.mentionsMe ? ' mention' : '';
+  const bubble = `<div class="message-bubble${m.isOwn ? ' own' : ''}${hasImgs ? ' has-photo' : ''}${mentionClass}">`
+    + replyHtml
+    + (!m.isOwn && !grouped ? `<div class="message-author">${escapeHtml(m.author)}</div>` : '')
     + (textBody ? `<div>${textBody}</div>` : '')
     + imgs
+    + reactHtml
     + `<div class="message-time">${relativeTime(m.timestamp)}</div></div>`;
+  if (m.isOwn) return `<div class="msg-row own">${bubble}</div>`;
+  if (grouped) return `<div class="msg-row grouped">${bubble}</div>`;
+  return `<div class="msg-row">${avatarHtml(m)}${bubble}</div>`;
 }
 
 function appendMessage(msg) {
   const near = isNearBottom();
+  const prev = messages[messages.length - 1];
   const wrap = document.createElement('div');
-  wrap.innerHTML = bubbleHtml(msg);
+  wrap.innerHTML = bubbleHtml(msg, prev);
   messageListEl.appendChild(wrap.firstElementChild);
-  if (near) scrollToBottom();
+  if (near) {
+    scrollToBottom();
+  } else {
+    newMsgBanner.style.display = 'block';
+  }
 }
 
 function isNearBottom() {
   return messageListEl.scrollHeight - messageListEl.scrollTop - messageListEl.clientHeight < 60;
 }
 
-function scrollToBottom() { messageListEl.scrollTop = messageListEl.scrollHeight; }
+function scrollToBottom() {
+  messageListEl.scrollTop = messageListEl.scrollHeight;
+  newMsgBanner.style.display = 'none';
+}
 
 // ── 12. loadGuilds ────────────────────────────────────────────────────────────
 async function loadGuilds() {
@@ -460,6 +553,8 @@ async function openGuild(g) {
 // ── 14. openChannel ───────────────────────────────────────────────────────────
 async function openChannel(ch) {
   currentChannel = ch;
+  unreadChannels.delete(ch.id);
+  newMsgBanner.style.display = 'none';
   $('channel-title').textContent = '#' + ch.name;
   $('compose-channel-name').textContent = '#' + ch.name;
   showScreen('messages');
@@ -505,9 +600,15 @@ function connectWS() {
   ws.onmessage = function(e) {
     try {
       const data = JSON.parse(e.data);
-      if (data.type === 'new_message' && currentChannel && data.channelId === currentChannel.id) {
-        if (data.message.isOwn) return;
-        appendMessage(data.message);
+      if (data.type === 'new_message') {
+        if (currentChannel && data.channelId === currentChannel.id) {
+          if (data.message.isOwn) return;
+          messages.push(data.message);
+          appendMessage(data.message);
+        } else {
+          unreadChannels.add(data.channelId);
+          if (currentScreen === 'channels') renderChannelList();
+        }
       }
     } catch (err) {}
   };
@@ -613,6 +714,10 @@ composeTA.addEventListener('keydown', function(e) {
 });
 
 // ── 21. Button/click handlers ─────────────────────────────────────────────────
+newMsgBanner.addEventListener('click', function() { scrollToBottom(); });
+messageListEl.addEventListener('scroll', function() {
+  if (isNearBottom()) newMsgBanner.style.display = 'none';
+});
 $('channels-back-btn').addEventListener('click', function() { showScreen('guilds'); });
 $('back-btn').addEventListener('click', function() { showScreen('channels'); });
 $('open-compose-btn').addEventListener('click', function() { if (!currentChannel) return; showScreen('compose'); });
