@@ -103,27 +103,88 @@ Test it at [http://localhost:3002](http://localhost:3002).
 
 ## Step 6 — Expose publicly (required for the R1 device)
 
-The R1 needs a public HTTPS URL. The easiest way is a free Cloudflare tunnel — no account needed:
+The R1 needs a public HTTPS URL to reach your backend.
+
+> **Important — use a stable URL.** The R1 creation URL is registered once on the device. If your backend URL changes (e.g. after a server restart), the R1 app will stop working and you'll have to re-register a new creation. Use one of the stable options below to avoid this.
+
+---
+
+### Option A — ngrok (easiest, no domain needed)
+
+1. Sign up free at [ngrok.com](https://ngrok.com)
+2. `npm install -g ngrok`
+3. `ngrok config add-authtoken YOUR_TOKEN`
+4. `ngrok http 3002`
+
+ngrok assigns you a permanent subdomain (`https://yourname.ngrok.app`) that never changes between restarts.
+
+---
+
+### Option B — Cloudflare named tunnel (best if you have a domain)
+
+1. Create a free [Cloudflare account](https://cloudflare.com) and add your domain
+2. [Install cloudflared](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/downloads/)
+3. `cloudflared login`
+4. `cloudflared tunnel create r1-discord`
+5. `cloudflared tunnel route dns r1-discord r1-discord.yourdomain.com`
+6. Create `~/.cloudflared/config.yml`:
+
+```yaml
+tunnel: r1-discord
+credentials-file: /root/.cloudflared/<tunnel-id>.json
+ingress:
+  - hostname: r1-discord.yourdomain.com
+    service: http://localhost:3002
+  - service: http_status:404
+```
+
+7. `cloudflared tunnel run r1-discord`
+8. To auto-start on boot: `cloudflared service install`
+
+---
+
+### Option C — VPS with Caddy (if you're already self-hosting)
+
+If you're on a VPS with a domain pointed at it, skip tunnels entirely:
+
+1. [Install Caddy](https://caddyserver.com/docs/install)
+2. Create `/etc/caddy/Caddyfile`:
+
+```
+r1-discord.yourdomain.com {
+    reverse_proxy localhost:3002
+}
+```
+
+3. `sudo systemctl enable --now caddy`
+
+Caddy provisions a Let's Encrypt cert automatically. URL is permanent from day one.
+
+---
+
+### Option D — Quick test only (URL changes on restart)
+
+If you just want to try the app before committing to a stable setup:
 
 ```bash
 npx cloudflared tunnel --url http://localhost:3002
 ```
 
-Cloudflare will print a URL like `https://some-random-words.trycloudflare.com`. Use that as your backend URL in the R1 creation screen.
-
-If you have a Cloudflare account you can create a named tunnel for a stable URL — see [Cloudflare Tunnel docs](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/).
+Cloudflare prints a random URL like `https://some-random-words.trycloudflare.com`. This works but changes every restart — don't use it as a permanent creation URL on the R1.
 
 ---
 
 ## R1 creation URL
 
-Open this URL in a browser or paste it into the R1 creation field:
+Once you have a stable URL, open this in a browser or paste it into the R1 creation field:
 
 ```
-http://localhost:3002/?backend=https://YOUR-TUNNEL.trycloudflare.com&token=YOUR_AUTH_TOKEN
+https://YOUR-STABLE-URL/?backend=https://YOUR-STABLE-URL&token=YOUR_AUTH_TOKEN
 ```
 
 (Omit `&token=...` if you left `R1_AUTH_TOKEN` blank.)
+
+Register this once. As long as your backend URL stays the same, you never need to re-register the creation.
 
 ---
 
