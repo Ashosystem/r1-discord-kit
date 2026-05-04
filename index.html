@@ -64,6 +64,7 @@ html, body {
 .scroll-area::-webkit-scrollbar-thumb { background: var(--border); }
 body.in-landscape .scroll-area,
 body.in-landscape #message-list { overflow: hidden; touch-action: none; }
+body.in-landscape #compose-history { display: none; }
 
 /* Guild list */
 .guild-item {
@@ -226,16 +227,91 @@ body.in-landscape #message-list { overflow: hidden; touch-action: none; }
   text-align: left; padding: 0 12px;
 }
 
-#compose-textarea {
-  flex: 1;
-  background: var(--bg);
-  border: none; outline: none;
-  color: var(--text);
-  font-family: inherit; font-size: 13px;
-  padding: 10px;
-  resize: none;
+/* ── DOM Keyboard ── */
+#compose-display {
+  flex-shrink: 0;
+  height: 46px;
+  background: var(--surface);
+  margin: 3px 8px 3px;
+  border-radius: 6px;
+  padding: 5px 8px;
+  font-size: 12px;
   line-height: 1.4;
+  overflow-y: auto;
+  word-break: break-word;
+  color: var(--text);
+  border: 1px solid var(--border);
 }
+#compose-display:empty::before { content: 'Type a message…'; color: var(--dim); }
+#compose-display::after {
+  content: '';
+  display: inline-block;
+  width: 1.5px;
+  height: 0.85em;
+  background: var(--accent);
+  margin-left: 1px;
+  vertical-align: -0.05em;
+  animation: cursor-blink 1s step-end infinite;
+}
+@keyframes cursor-blink {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0; }
+}
+
+#compose-history {
+  flex-shrink: 0;
+  height: 70px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 4px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  border-bottom: 1px solid var(--border);
+}
+#compose-history::-webkit-scrollbar { width: 2px; }
+#compose-history::-webkit-scrollbar-thumb { background: var(--border); }
+#compose-history .msg-row { pointer-events: none; }
+#compose-history .msg-avatar,
+#compose-history .msg-avatar-placeholder { display: none; }
+#compose-history .message-bubble { font-size: 10px; padding: 3px 6px; }
+#compose-history .message-time { font-size: 9px; }
+#compose-history .message-author { font-size: 9px; }
+#virtual-keyboard {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: 2px 4px 2px;
+  gap: 2px;
+  background: #111;
+}
+.kbd-row {
+  flex: 1;
+  display: flex;
+  gap: 2px;
+  justify-content: center;
+}
+.key {
+  flex: 1;
+  min-height: 26px;
+  background: #2a2a2e;
+  border: 1px solid #555;
+  border-bottom: 2px solid #444;
+  color: #fff;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 500;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  touch-action: manipulation;
+  user-select: none; -webkit-user-select: none;
+}
+.key:active { background: #555; }
+.key.wide   { flex: 1.6; font-size: 9px; }
+.key.space  { flex: 4; }
+.key.action { background: #3a6abf; border-color: #2a4a9f; }
+.key.action:active { background: #4a7acf; }
+.key.shifted { background: #3a3a44; color: #aad4ff; }
 
 .compose-actions {
   flex-shrink: 0;
@@ -341,19 +417,31 @@ body.in-landscape #message-list { overflow: hidden; touch-action: none; }
 <!-- screen: compose -->
 <div id="screen-compose" class="screen">
   <div class="header">
+    <button class="back-btn" id="cancel-btn">&#8249;</button>
     <div class="header-title" id="compose-channel-name"></div>
+    <button class="btn btn-send" id="send-btn" style="flex:0;padding:0 10px;height:26px;font-size:11px;">Send</button>
   </div>
-  <textarea
-    id="compose-textarea"
-    placeholder="Type a message…"
-    spellcheck="false"
-    autocorrect="off"
-    autocapitalize="sentences"
-    autocomplete="off"
-  ></textarea>
-  <div class="compose-actions">
-    <button class="btn btn-cancel" id="cancel-btn">Cancel</button>
-    <button class="btn btn-send"   id="send-btn">Send</button>
+  <div id="compose-history"></div>
+  <div id="compose-display"></div>
+  <div id="virtual-keyboard">
+    <div class="kbd-row">
+      <button class="key" data-k="q">q</button><button class="key" data-k="w">w</button><button class="key" data-k="e">e</button><button class="key" data-k="r">r</button><button class="key" data-k="t">t</button><button class="key" data-k="y">y</button><button class="key" data-k="u">u</button><button class="key" data-k="i">i</button><button class="key" data-k="o">o</button><button class="key" data-k="p">p</button>
+    </div>
+    <div class="kbd-row" style="padding:0 5px">
+      <button class="key" data-k="a">a</button><button class="key" data-k="s">s</button><button class="key" data-k="d">d</button><button class="key" data-k="f">f</button><button class="key" data-k="g">g</button><button class="key" data-k="h">h</button><button class="key" data-k="j">j</button><button class="key" data-k="k">k</button><button class="key" data-k="l">l</button>
+    </div>
+    <div class="kbd-row">
+      <button class="key wide" id="kbd-shift">&#8679;</button>
+      <button class="key" data-k="z">z</button><button class="key" data-k="x">x</button><button class="key" data-k="c">c</button><button class="key" data-k="v">v</button><button class="key" data-k="b">b</button><button class="key" data-k="n">n</button><button class="key" data-k="m">m</button>
+      <button class="key wide" id="kbd-back">&#9003;</button>
+    </div>
+    <div class="kbd-row">
+      <button class="key wide" id="kbd-sym">?123</button>
+      <button class="key" data-k=",">,</button>
+      <button class="key space" id="kbd-space">space</button>
+      <button class="key" data-k=".">.</button>
+      <button class="key wide action" id="kbd-enter">&#9166;</button>
+    </div>
   </div>
 </div>
 
@@ -387,6 +475,7 @@ let selectedIdx      = 0;
 let currentScreen    = '';
 let ws               = null;
 let isLandscape      = false;
+let rotationPaused   = false;
 let wsReconnectDelay = 1000;
 let recognition      = null;
 let isRecording      = false;
@@ -403,7 +492,7 @@ const guildListEl   = $('guild-list');
 const channelListEl = $('channel-list');
 const messageListEl = $('message-list');
 const newMsgBanner  = $('new-msg-banner');
-const composeTA     = $('compose-textarea');
+const composeDisplay = $('compose-display');
 
 // ── R1 native STT bridge ──────────────────────────────────────────────────────
 window.onPluginMessage = function(data) {
@@ -412,19 +501,27 @@ window.onPluginMessage = function(data) {
     isRecording = false;
     recIndicator.classList.remove('active');
     const text = (data.transcript || '').trim();
-    if (text) { composeTA.value = text; showScreen('compose'); }
+    if (text) { composeDisplay.textContent = text; showScreen('compose'); }
     else { showToast('No speech detected'); }
   }
 };
 
 // ── 4. showScreen ─────────────────────────────────────────────────────────────
+function populateComposeHistory() {
+  const el = document.getElementById('compose-history');
+  if (!el || !messages.length) return;
+  const recent = messages.slice(-8);
+  el.innerHTML = recent.map((m, i) => bubbleHtml(m, recent[i - 1], i)).join('');
+  el.scrollTop = el.scrollHeight;
+}
+
 function showScreen(name) {
   currentScreen = name;
   $('screen-guilds').classList.toggle('active',    name === 'guilds');
   $('screen-channels').classList.toggle('active',  name === 'channels');
   $('screen-messages').classList.toggle('active',  name === 'messages');
   $('screen-compose').classList.toggle('active',   name === 'compose');
-  if (name === 'compose') setTimeout(() => composeTA.focus(), 50);
+  if (name === 'compose') populateComposeHistory();
 }
 
 // ── 5. Loading ────────────────────────────────────────────────────────────────
@@ -556,6 +653,12 @@ function bubbleHtml(m, prev, idx) {
   const imgs = (m.images || []).map(url =>
     `<img src="${escapeHtml(url)}" style="max-width:100%;border-radius:5px;margin-top:3px;display:block;" loading="lazy">`
   ).join('');
+  const embedsHtml = (m.embeds || []).map(e => {
+    const parts = [];
+    if (e.title) parts.push(`<div style="font-weight:700;font-size:11px">${escapeHtml(e.title)}</div>`);
+    if (e.description) parts.push(`<div style="font-size:11px;color:var(--dim)">${discordToHtml(e.description)}</div>`);
+    return `<div style="border-left:3px solid var(--accent);padding:3px 6px;margin-top:3px;background:rgba(74,158,255,0.08)">${parts.join('')}</div>`;
+  }).join('');
   const replyHtml = m.replyTo
     ? `<div class="msg-reply"><span class="msg-reply-author">${escapeHtml(m.replyTo.author)}</span>${escapeHtml(m.replyTo.content)}</div>`
     : '';
@@ -567,6 +670,7 @@ function bubbleHtml(m, prev, idx) {
     + replyHtml
     + (!m.isOwn && !grouped ? `<div class="message-author">${escapeHtml(m.author)}</div>` : '')
     + (textBody ? `<div>${textBody}</div>` : '')
+    + embedsHtml
     + imgs
     + reactHtml
     + `<div class="message-time">${relativeTime(m.timestamp)}</div></div>`;
@@ -659,7 +763,7 @@ async function openChannel(ch) {
 
 // ── 15. sendMessage ───────────────────────────────────────────────────────────
 async function sendMessage() {
-  const content = composeTA.value.trim();
+  const content = composeDisplay.textContent.trim();
   if (!content || !currentChannel) return;
   const sendBtn = $('send-btn');
   sendBtn.disabled = true;
@@ -669,7 +773,7 @@ async function sendMessage() {
       body: JSON.stringify({ content, replyTo: replyTarget?.id || null }),
     });
     setReplyTarget(null);
-    composeTA.value = '';
+    composeDisplay.textContent = '';
     showScreen('messages');
     appendMessage(result.message);
   } catch (e) {
@@ -741,7 +845,7 @@ function stopListening() {
   isRecording = false; recIndicator.classList.remove('active');
   const text = recognition ? recognition._getPending().trim() : '';
   try { if (recognition) recognition.stop(); } catch (e) {}
-  if (text) { composeTA.value = text; showScreen('compose'); }
+  if (text) { composeDisplay.textContent = text; showScreen('compose'); }
   else { showToast('No speech detected'); }
 }
 
@@ -798,11 +902,89 @@ document.addEventListener('keyup', function(e) {
   if (e.key === ' ' || e.code === 'Space') { e.preventDefault(); window.dispatchEvent(new Event('longPressEnd')); }
 });
 
-composeTA.addEventListener('keydown', function(e) {
-  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
-});
+// ── 21. DOM Keyboard logic ────────────────────────────────────────────────────
+(function() {
+  let shifted = false;
+  let symMode = false;
 
-// ── 21. Button/click handlers ─────────────────────────────────────────────────
+  const letters = [
+    ['q','w','e','r','t','y','u','i','o','p'],
+    ['a','s','d','f','g','h','j','k','l'],
+    ['z','x','c','v','b','n','m']
+  ];
+  const symbols = [
+    ['1','2','3','4','5','6','7','8','9','0'],
+    ['-','/',':',';','(',')','$','&','@','"'],
+    ['.',',','?','!','\'']
+  ];
+
+  function applyShift() {
+    const keys = document.querySelectorAll('.key[data-k]');
+    keys.forEach(k => {
+      const v = k.dataset.k;
+      if (v.length === 1 && v >= 'a' && v <= 'z') {
+        k.textContent = shifted ? v.toUpperCase() : v;
+      }
+    });
+    const shiftBtn = document.getElementById('kbd-shift');
+    if (shiftBtn) shiftBtn.classList.toggle('shifted', shifted);
+  }
+
+  function applySymMode() {
+    const rows = [0, 1, 2];
+    const allRows = document.querySelectorAll('.kbd-row');
+    const symBtn = document.getElementById('kbd-sym');
+    if (symMode) {
+      // rows 0-2 get symbol sets
+      [0, 1, 2].forEach(r => {
+        const row = allRows[r];
+        if (!row) return;
+        const keys = row.querySelectorAll('.key[data-k]');
+        keys.forEach((k, i) => {
+          const sym = (symbols[r] || [])[i];
+          if (sym !== undefined) { k.dataset.k = sym; k.textContent = sym; }
+        });
+      });
+      if (symBtn) symBtn.textContent = 'ABC';
+    } else {
+      [0, 1, 2].forEach(r => {
+        const row = allRows[r];
+        if (!row) return;
+        const keys = row.querySelectorAll('.key[data-k]');
+        keys.forEach((k, i) => {
+          const l = (letters[r] || [])[i];
+          if (l !== undefined) { k.dataset.k = l; k.textContent = shifted ? l.toUpperCase() : l; }
+        });
+      });
+      if (symBtn) symBtn.textContent = '?123';
+    }
+  }
+
+  document.getElementById('virtual-keyboard').addEventListener('click', function(e) {
+    const key = e.target.closest('.key');
+    if (!key) return;
+    const id = key.id, v = key.dataset.k;
+
+    if (id === 'kbd-shift') {
+      shifted = !shifted; symMode = false; applyShift();
+    } else if (id === 'kbd-sym') {
+      symMode = !symMode; applySymMode();
+    } else if (id === 'kbd-back') {
+      const d = composeDisplay;
+      if (d.textContent.length) d.textContent = d.textContent.slice(0, -1);
+    } else if (id === 'kbd-space') {
+      composeDisplay.textContent += ' ';
+    } else if (id === 'kbd-enter') {
+      sendMessage();
+    } else if (v) {
+      const ch = (shifted && !symMode) ? v.toUpperCase() : v;
+      composeDisplay.textContent += ch;
+      if (shifted && !symMode) { shifted = false; applyShift(); }
+    }
+  });
+})();
+
+// ── 21b. Button/click handlers ────────────────────────────────────────────────
 newMsgBanner.addEventListener('click', function() { scrollToBottom(); });
 document.getElementById('reply-cancel').addEventListener('click', function() { setReplyTarget(null); });
 messageListEl.addEventListener('click', function(e) {
@@ -817,7 +999,7 @@ messageListEl.addEventListener('scroll', function() {
 $('channels-back-btn').addEventListener('click', function() { showScreen('guilds'); });
 $('back-btn').addEventListener('click', function() { showScreen('channels'); });
 $('open-compose-btn').addEventListener('click', function() { if (!currentChannel) return; showScreen('compose'); });
-$('cancel-btn').addEventListener('click', function() { composeTA.value = ''; showScreen('messages'); });
+$('cancel-btn').addEventListener('click', function() { composeDisplay.textContent = ''; showScreen('messages'); });
 $('send-btn').addEventListener('click', function() { sendMessage(); });
 
 guildListEl.addEventListener('click', function(e) {
@@ -835,21 +1017,37 @@ channelListEl.addEventListener('click', function(e) {
 });
 
 // ── 22. Landscape rotation ────────────────────────────────────────────────────
-(async function() {
-  const appEl = document.getElementById('app');
+const _appEl = document.getElementById('app');
+let _usingOsRotation = false;
 
-  function setLandscape(on) {
-    if (on === isLandscape) return;
-    isLandscape = on;
-    appEl.classList.toggle('landscape', on);
-    document.body.classList.toggle('in-landscape', on);
+async function setLandscape(on) {
+  if (on === isLandscape) return;
+  isLandscape = on;
+
+  // Try OS-level orientation lock (keyboard follows automatically)
+  if (screen.orientation && typeof screen.orientation.lock === 'function') {
+    try {
+      if (on) {
+        await screen.orientation.lock('landscape-secondary');
+      } else {
+        await screen.orientation.lock('portrait-primary');
+      }
+      _usingOsRotation = true;
+      // No CSS needed — OS handles it
+      return;
+    } catch (e) {
+      _usingOsRotation = false;
+    }
   }
 
-  function handleMotion(e) {
-    const a = e.accelerationIncludingGravity;
-    if (!a) return;
-    const ax = Math.abs(a.x || 0);
-    // Hysteresis: enter landscape at >7, exit at <4
+  // CSS fallback
+  _appEl.classList.toggle('landscape', on);
+  document.body.classList.toggle('in-landscape', on);
+}
+
+(async function() {
+  function onTilt(ax) {
+    if (rotationPaused) return;
     if (!isLandscape && ax > 7) setLandscape(true);
     else if (isLandscape && ax < 4) setLandscape(false);
   }
@@ -858,18 +1056,16 @@ channelListEl.addEventListener('click', function(e) {
     try {
       const available = await window.creationSensors.accelerometer.isAvailable();
       if (available) {
-        window.creationSensors.accelerometer.start(function(data) {
+        const cb = function(data) {
           const ax = Math.abs(data.x || 0);
+          if (rotationPaused) return;
           if (!isLandscape && ax > 0.7) setLandscape(true);
           else if (isLandscape && ax < 0.4) setLandscape(false);
-        }, { frequency: 10 });
+        };
+        window.creationSensors.accelerometer.start(cb, { frequency: 10 });
         document.addEventListener('visibilitychange', function() {
           if (document.hidden) window.creationSensors.accelerometer.stop();
-          else window.creationSensors.accelerometer.start(function(data) {
-            const ax = Math.abs(data.x || 0);
-            if (!isLandscape && ax > 0.7) setLandscape(true);
-            else if (isLandscape && ax < 0.4) setLandscape(false);
-          }, { frequency: 10 });
+          else window.creationSensors.accelerometer.start(cb, { frequency: 10 });
         });
         return;
       }
@@ -877,7 +1073,11 @@ channelListEl.addEventListener('click', function(e) {
   }
 
   if (typeof DeviceMotionEvent !== 'undefined') {
-    window.addEventListener('devicemotion', handleMotion);
+    window.addEventListener('devicemotion', function(e) {
+      const a = e.accelerationIncludingGravity;
+      if (!a) return;
+      onTilt(Math.abs(a.x || 0));
+    });
   }
 })();
 

@@ -89,6 +89,10 @@ function formatMessage(msg) {
     count: r.count,
   }));
 
+  const embeds = msg.embeds
+    .filter(e => e.title || e.description)
+    .map(e => ({ title: e.title || null, description: e.description || null, url: e.url || null }));
+
   return {
     id:            msg.id,
     author:        msg.member?.displayName || msg.author.username,
@@ -104,6 +108,7 @@ function formatMessage(msg) {
     replyTo:       null, // populated async by buildMessage
     hasAudio:      attachments.some(a => a.contentType?.startsWith('audio/')),
     images,
+    embeds,
   };
 }
 
