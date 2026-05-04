@@ -70,20 +70,18 @@ function formatMessage(msg) {
     .filter(a => a.contentType?.startsWith('image/') || /\.(jpg|jpeg|png|gif|webp)$/i.test(a.name || ''))
     .map(a => a.url);
 
-  const isSystem = msg.type !== 0 && msg.type !== 'Default';
-  let systemContent = '';
-  if (isSystem) {
-    const name = msg.member?.displayName || msg.author.username;
-    switch (String(msg.type)) {
-      case '1':  case 'RecipientAdd':    systemContent = `${name} joined`; break;
-      case '2':  case 'RecipientRemove': systemContent = `${name} left`; break;
-      case '6':  case 'UserPremiumGuildSubscription': systemContent = `${name} boosted the server`; break;
-      case '7':  case 'UserPremiumGuildSubscriptionTier1': systemContent = `${name} boosted (Tier 1)`; break;
-      case '8':  case 'UserPremiumGuildSubscriptionTier2': systemContent = `${name} boosted (Tier 2)`; break;
-      case '9':  case 'UserPremiumGuildSubscriptionTier3': systemContent = `${name} boosted (Tier 3)`; break;
-      case '12': case 'GuildMemberJoin': systemContent = `${name} joined the server`; break;
-      default:   systemContent = msg.content || `[system message]`; break;
-    }
+  // Whitelist known notification types — Reply (19/'Reply'), slash commands etc. are normal messages
+  const name = msg.member?.displayName || msg.author.username;
+  let isSystem = false, systemContent = '';
+  switch (String(msg.type)) {
+    case '1':  case 'RecipientAdd':                      isSystem = true; systemContent = `${name} joined`; break;
+    case '2':  case 'RecipientRemove':                   isSystem = true; systemContent = `${name} left`; break;
+    case '6':  case 'UserPremiumGuildSubscription':      isSystem = true; systemContent = `${name} boosted the server`; break;
+    case '7':  case 'UserPremiumGuildSubscriptionTier1': isSystem = true; systemContent = `${name} boosted (Tier 1)`; break;
+    case '8':  case 'UserPremiumGuildSubscriptionTier2': isSystem = true; systemContent = `${name} boosted (Tier 2)`; break;
+    case '9':  case 'UserPremiumGuildSubscriptionTier3': isSystem = true; systemContent = `${name} boosted (Tier 3)`; break;
+    case '12': case 'GuildMemberJoin':                   isSystem = true; systemContent = `${name} joined the server`; break;
+    default: break;
   }
 
   const reactions = [...msg.reactions.cache.values()].map(r => ({
@@ -187,13 +185,15 @@ app.post('/channels/:id/voice', authMiddleware, upload.single('audio'), async (r
 });
 
 app.post('/channels/:id/send', authMiddleware, async (req, res) => {
-  const { content } = req.body;
+  const { content, replyTo } = req.body;
   if (!content?.trim()) return res.status(400).json({ error: 'content required' });
   if (content.length > 2000) return res.status(400).json({ error: 'Too long' });
   try {
     const channel = await client.channels.fetch(req.params.id);
     if (!channel || !GUILD_IDS.includes(channel.guildId)) return res.status(404).json({ error: 'Not found' });
-    const sent = await channel.send(content.trim());
+    const msgOptions = { content: content.trim() };
+    if (replyTo) msgOptions.reply = { messageReference: replyTo };
+    const sent = await channel.send(msgOptions);
     res.json({ ok: true, message: await buildMessage(sent) });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });

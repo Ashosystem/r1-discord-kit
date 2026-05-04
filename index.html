@@ -178,6 +178,25 @@ html, body {
   white-space: nowrap;
 }
 
+#reply-bar {
+  flex-shrink: 0;
+  display: none;
+  align-items: center;
+  padding: 4px 8px;
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+  gap: 6px;
+  font-size: 10px; color: var(--dim);
+}
+#reply-bar.active { display: flex; }
+#reply-bar-text { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#reply-bar-text strong { color: var(--accent); }
+#reply-cancel {
+  background: none; border: none; color: var(--dim);
+  font-size: 14px; cursor: pointer; padding: 0 2px; line-height: 1;
+  flex-shrink: 0;
+}
+
 .compose-bar {
   flex-shrink: 0;
   height: 40px;
@@ -295,6 +314,10 @@ html, body {
   </div>
   <div id="message-list"></div>
   <div id="new-msg-banner">↓ New messages</div>
+  <div id="reply-bar">
+    <span id="reply-bar-text"></span>
+    <button id="reply-cancel">×</button>
+  </div>
   <div class="compose-bar">
     <button class="compose-open-btn" id="open-compose-btn">Type a message…</button>
   </div>
@@ -350,6 +373,7 @@ let wsReconnectDelay = 1000;
 let recognition      = null;
 let isRecording      = false;
 const unreadChannels = new Set();
+let replyTarget      = null;
 
 // ── 3. DOM refs ───────────────────────────────────────────────────────────────
 const $ = id => document.getElementById(id);
@@ -451,8 +475,20 @@ function renderChannelList() {
 }
 
 // ── 11. renderMessages ────────────────────────────────────────────────────────
+function setReplyTarget(msg) {
+  replyTarget = msg;
+  const bar = document.getElementById('reply-bar');
+  const txt = document.getElementById('reply-bar-text');
+  if (msg) {
+    txt.innerHTML = `↩ <strong>${escapeHtml(msg.author)}</strong>: ${escapeHtml((msg.content || '[attachment]').slice(0, 60))}`;
+    bar.classList.add('active');
+  } else {
+    bar.classList.remove('active');
+  }
+}
+
 function renderMessages() {
-  messageListEl.innerHTML = messages.map((m, i) => bubbleHtml(m, messages[i - 1])).join('');
+  messageListEl.innerHTML = messages.map((m, i) => bubbleHtml(m, messages[i - 1], i)).join('');
   scrollToBottom();
 }
 
@@ -461,7 +497,7 @@ function avatarHtml(m) {
   return `<div class="msg-avatar-placeholder">${escapeHtml((m.author || '?')[0].toUpperCase())}</div>`;
 }
 
-function bubbleHtml(m, prev) {
+function bubbleHtml(m, prev, idx) {
   if (m.isSystem) {
     return `<div class="system-msg">${escapeHtml(m.systemContent || '')}</div>`;
   }
@@ -485,16 +521,18 @@ function bubbleHtml(m, prev) {
     + imgs
     + reactHtml
     + `<div class="message-time">${relativeTime(m.timestamp)}</div></div>`;
-  if (m.isOwn) return `<div class="msg-row own">${bubble}</div>`;
-  if (grouped) return `<div class="msg-row grouped">${bubble}</div>`;
-  return `<div class="msg-row">${avatarHtml(m)}${bubble}</div>`;
+  const di = idx !== undefined ? ` data-idx="${idx}"` : '';
+  if (m.isOwn) return `<div class="msg-row own"${di}>${bubble}</div>`;
+  if (grouped) return `<div class="msg-row grouped"${di}>${bubble}</div>`;
+  return `<div class="msg-row"${di}>${avatarHtml(m)}${bubble}</div>`;
 }
 
 function appendMessage(msg) {
   const near = isNearBottom();
   const prev = messages[messages.length - 1];
+  const idx  = messages.length;
   const wrap = document.createElement('div');
-  wrap.innerHTML = bubbleHtml(msg, prev);
+  wrap.innerHTML = bubbleHtml(msg, prev, idx);
   messageListEl.appendChild(wrap.firstElementChild);
   if (near) {
     scrollToBottom();
@@ -555,6 +593,7 @@ async function openChannel(ch) {
   currentChannel = ch;
   unreadChannels.delete(ch.id);
   newMsgBanner.style.display = 'none';
+  setReplyTarget(null);
   $('channel-title').textContent = '#' + ch.name;
   $('compose-channel-name').textContent = '#' + ch.name;
   showScreen('messages');
@@ -578,8 +617,9 @@ async function sendMessage() {
   try {
     const result = await api('/channels/' + currentChannel.id + '/send', {
       method: 'POST',
-      body: JSON.stringify({ content }),
+      body: JSON.stringify({ content, replyTo: replyTarget?.id || null }),
     });
+    setReplyTarget(null);
     composeTA.value = '';
     showScreen('messages');
     appendMessage(result.message);
@@ -715,6 +755,13 @@ composeTA.addEventListener('keydown', function(e) {
 
 // ── 21. Button/click handlers ─────────────────────────────────────────────────
 newMsgBanner.addEventListener('click', function() { scrollToBottom(); });
+document.getElementById('reply-cancel').addEventListener('click', function() { setReplyTarget(null); });
+messageListEl.addEventListener('click', function(e) {
+  const row = e.target.closest('.msg-row[data-idx]');
+  if (!row) return;
+  const idx = parseInt(row.dataset.idx, 10);
+  if (!isNaN(idx) && messages[idx]) setReplyTarget(messages[idx]);
+});
 messageListEl.addEventListener('scroll', function() {
   if (isNearBottom()) newMsgBanner.style.display = 'none';
 });
