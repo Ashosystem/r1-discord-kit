@@ -23,6 +23,18 @@ html, body {
   font-size: 13px;
   touch-action: manipulation;
 }
+#app {
+  position: absolute;
+  width: 240px; height: 282px;
+  top: 0; left: 0;
+  transition: transform 0.25s ease;
+}
+#app.landscape {
+  width: 282px; height: 240px;
+  top: 21px; left: -21px;
+  transform: rotate(-90deg);
+  transform-origin: center;
+}
 .screen { position: absolute; inset: 0; display: none; flex-direction: column; overflow: hidden; }
 .screen.active { display: flex; }
 
@@ -50,6 +62,8 @@ html, body {
 .scroll-area { flex: 1; overflow-y: auto; overflow-x: hidden; }
 .scroll-area::-webkit-scrollbar { width: 3px; }
 .scroll-area::-webkit-scrollbar-thumb { background: var(--border); }
+body.in-landscape .scroll-area,
+body.in-landscape #message-list { overflow: hidden; touch-action: none; }
 
 /* Guild list */
 .guild-item {
@@ -288,6 +302,7 @@ html, body {
 </style>
 </head>
 <body>
+<div id="app">
 
 <!-- screen: guilds -->
 <div id="screen-guilds" class="screen">
@@ -354,6 +369,8 @@ html, body {
 <!-- toast -->
 <div id="toast"></div>
 
+</div><!-- #app -->
+
 <script>
 // ── 1. Config ─────────────────────────────────────────────────────────────────
 const params   = new URLSearchParams(location.search);
@@ -369,6 +386,7 @@ let messages         = [];
 let selectedIdx      = 0;
 let currentScreen    = '';
 let ws               = null;
+let isLandscape      = false;
 let wsReconnectDelay = 1000;
 let recognition      = null;
 let isRecording      = false;
@@ -728,7 +746,7 @@ function stopListening() {
 }
 
 // ── 18. Scroll ────────────────────────────────────────────────────────────────
-window.addEventListener('scrollUp', function() {
+function doScrollUp() {
   if (currentScreen === 'compose') return;
   if (currentScreen === 'guilds') {
     if (selectedIdx > 0) { selectedIdx--; renderGuildList(); }
@@ -737,8 +755,8 @@ window.addEventListener('scrollUp', function() {
   } else if (currentScreen === 'messages') {
     messageListEl.scrollBy(0, -60);
   }
-});
-window.addEventListener('scrollDown', function() {
+}
+function doScrollDown() {
   if (currentScreen === 'compose') return;
   if (currentScreen === 'guilds') {
     if (selectedIdx < guilds.length - 1) { selectedIdx++; renderGuildList(); }
@@ -747,18 +765,23 @@ window.addEventListener('scrollDown', function() {
   } else if (currentScreen === 'messages') {
     messageListEl.scrollBy(0, 60);
   }
-});
+}
+// Inverted portrait feel + landscape compensation cancels out — both modes: scrollUp=down, scrollDown=up
+window.addEventListener('scrollUp',   () => doScrollDown());
+window.addEventListener('scrollDown', () => doScrollUp());
 
-// ── 19. Long press ────────────────────────────────────────────────────────────
-window.addEventListener('longPressStart', function() {
+// ── 19. Side button (single click = select, long press = PTT) ─────────────────
+let sideClickTimer = null;
+window.addEventListener('sideClick', function() {
+  // Hardware fires two sideClick events ~50ms apart — debounce
+  if (sideClickTimer) return;
+  sideClickTimer = setTimeout(function() { sideClickTimer = null; }, 150);
   if (currentScreen === 'compose') return;
-  if (currentScreen === 'guilds' && guilds[selectedIdx]) {
-    openGuild(guilds[selectedIdx]);
-  } else if (currentScreen === 'channels' && channels[selectedIdx]) {
-    openChannel(channels[selectedIdx]);
-  } else if (currentScreen === 'messages') {
-    startListening();
-  }
+  if (currentScreen === 'guilds' && guilds[selectedIdx]) openGuild(guilds[selectedIdx]);
+  else if (currentScreen === 'channels' && channels[selectedIdx]) openChannel(channels[selectedIdx]);
+});
+window.addEventListener('longPressStart', function() {
+  if (currentScreen === 'messages') startListening();
 });
 window.addEventListener('longPressEnd', function() {
   if (currentScreen === 'messages' && isRecording) stopListening();
@@ -767,17 +790,12 @@ window.addEventListener('longPressEnd', function() {
 // ── 20. Keyboard ──────────────────────────────────────────────────────────────
 document.addEventListener('keydown', function(e) {
   if (currentScreen === 'compose') return;
-  if (e.key === ' ' || e.code === 'Space') {
-    e.preventDefault();
-    window.dispatchEvent(new Event('longPressStart'));
-  }
+  if (e.key === 'Enter') { e.preventDefault(); window.dispatchEvent(new Event('sideClick')); }
+  if (e.key === ' ' || e.code === 'Space') { e.preventDefault(); window.dispatchEvent(new Event('longPressStart')); }
 });
 document.addEventListener('keyup', function(e) {
   if (currentScreen === 'compose') return;
-  if (e.key === ' ' || e.code === 'Space') {
-    e.preventDefault();
-    window.dispatchEvent(new Event('longPressEnd'));
-  }
+  if (e.key === ' ' || e.code === 'Space') { e.preventDefault(); window.dispatchEvent(new Event('longPressEnd')); }
 });
 
 composeTA.addEventListener('keydown', function(e) {
@@ -816,7 +834,79 @@ channelListEl.addEventListener('click', function(e) {
   if (!isNaN(idx) && channels[idx]) { selectedIdx = idx; openChannel(channels[idx]); }
 });
 
-// ── 22. Init ──────────────────────────────────────────────────────────────────
+// ── 22. Landscape rotation ────────────────────────────────────────────────────
+(async function() {
+  const appEl = document.getElementById('app');
+
+  function setLandscape(on) {
+    if (on === isLandscape) return;
+    isLandscape = on;
+    appEl.classList.toggle('landscape', on);
+    document.body.classList.toggle('in-landscape', on);
+  }
+
+  function handleMotion(e) {
+    const a = e.accelerationIncludingGravity;
+    if (!a) return;
+    const ax = Math.abs(a.x || 0);
+    // Hysteresis: enter landscape at >7, exit at <4
+    if (!isLandscape && ax > 7) setLandscape(true);
+    else if (isLandscape && ax < 4) setLandscape(false);
+  }
+
+  if (typeof window.creationSensors !== 'undefined') {
+    try {
+      const available = await window.creationSensors.accelerometer.isAvailable();
+      if (available) {
+        window.creationSensors.accelerometer.start(function(data) {
+          const ax = Math.abs(data.x || 0);
+          if (!isLandscape && ax > 0.7) setLandscape(true);
+          else if (isLandscape && ax < 0.4) setLandscape(false);
+        }, { frequency: 10 });
+        document.addEventListener('visibilitychange', function() {
+          if (document.hidden) window.creationSensors.accelerometer.stop();
+          else window.creationSensors.accelerometer.start(function(data) {
+            const ax = Math.abs(data.x || 0);
+            if (!isLandscape && ax > 0.7) setLandscape(true);
+            else if (isLandscape && ax < 0.4) setLandscape(false);
+          }, { frequency: 10 });
+        });
+        return;
+      }
+    } catch(e) {}
+  }
+
+  if (typeof DeviceMotionEvent !== 'undefined') {
+    window.addEventListener('devicemotion', handleMotion);
+  }
+})();
+
+// ── 23. Landscape touch-scroll remapping ──────────────────────────────────────
+(function() {
+  let touchStartX = 0;
+
+  function activeScrollArea() {
+    const s = document.querySelector('.screen.active');
+    if (!s) return null;
+    return s.querySelector('.scroll-area') || document.getElementById('message-list');
+  }
+
+  document.addEventListener('touchstart', function(e) {
+    touchStartX = e.touches[0].clientX;
+  }, { passive: true });
+
+  document.addEventListener('touchmove', function(e) {
+    if (!isLandscape) return;
+    const sa = activeScrollArea();
+    if (!sa) return;
+    e.preventDefault();
+    const dx = e.touches[0].clientX - touchStartX;
+    sa.scrollTop -= dx * 1.5;
+    touchStartX = e.touches[0].clientX;
+  }, { passive: false });
+})();
+
+// ── 24. Init ──────────────────────────────────────────────────────────────────
 (async function init() {
   await loadGuilds();
   connectWS();
