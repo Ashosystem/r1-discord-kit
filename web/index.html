@@ -13,6 +13,10 @@
   --dim:     #888888;
   --accent:  #4a9eff;
   --own-msg: #2a4a8f;
+  /* Matches server BOT_EMBED_COLOR — bot “embed cards” in the message rail */
+  --embed-accent: #e82734;
+  --embed-card-bg: rgba(232, 39, 52, 0.14);
+  --embed-md-ink: #0a0a0a;
 }
 * { box-sizing: border-box; margin: 0; padding: 0; }
 html, body {
@@ -48,7 +52,7 @@ html, body {
 }
 .genre-btn {
   flex-shrink: 0;
-  font-size: 10px;
+  font-size: 9px;
   font-weight: 700;
   padding: 3px 6px;
   border-radius: 5px;
@@ -58,7 +62,7 @@ html, body {
   cursor: pointer;
   font-family: inherit;
   line-height: 1;
-  max-width: 52px;
+  max-width: 42px;
   white-space: nowrap;
 }
 .log-open-btn {
@@ -174,6 +178,36 @@ html, body {
   word-break: break-word; font-size: 12px; line-height: 1.4;
 }
 .message-bubble.own { align-self: flex-end; background: var(--own-msg); }
+.message-bubble.own.embed-card {
+  align-self: flex-end;
+  background: var(--embed-card-bg);
+  border-left: 3px solid var(--embed-accent);
+}
+.message-bubble.embed-card {
+  background: var(--embed-card-bg);
+  border-left: 3px solid var(--embed-accent);
+  color: var(--embed-accent);
+}
+.message-bubble.embed-card .message-author {
+  color: var(--embed-accent);
+  opacity: 0.9;
+}
+.message-bubble.embed-card .message-body {
+  color: var(--embed-accent);
+}
+.message-bubble.embed-card .message-body strong,
+.message-bubble.embed-card .message-body b,
+.message-bubble.embed-card .message-body em,
+.message-bubble.embed-card .message-body i,
+.message-bubble.embed-card .message-body u,
+.message-bubble.embed-card .message-body s,
+.message-bubble.embed-card .message-body del,
+.message-bubble.embed-card .message-body code {
+  color: var(--embed-md-ink);
+}
+.message-bubble.embed-card .voice-label {
+  color: var(--embed-md-ink);
+}
 .message-bubble.has-photo { max-width: 96%; }
 .message-author { font-size: 10px; font-weight: 700; color: var(--accent); margin-bottom: 2px; }
 .message-time   { font-size: 9px;  color: var(--dim); text-align: right; margin-top: 2px; }
@@ -318,6 +352,161 @@ html, body {
   border-bottom: 1px solid #522;
 }
 #genre-banner:empty { display: none !important; }
+
+#meme-mode-banner {
+  display: none;
+  flex-shrink: 0;
+  padding: 3px 8px;
+  font-size: 9px;
+  line-height: 1.25;
+  color: #c9b3ff;
+  background: rgba(40, 30, 60, 0.9);
+  border-bottom: 1px solid #435;
+}
+#meme-mode-banner:empty { display: none !important; }
+
+.discord-voice-wrap {
+  display: none;
+  flex-shrink: 0;
+  flex-direction: column;
+  gap: 2px;
+  padding: 4px 8px 5px;
+  font-size: 9px;
+  line-height: 1.25;
+  background: rgba(24, 50, 45, 0.92);
+  border-bottom: 1px solid #264;
+}
+.discord-voice-wrap.discord-voice-wrap--visible { display: flex; }
+.discord-voice-line--title {
+  color: #9fd;
+}
+.discord-voice-line--speakers {
+  display: none;
+  color: #cfe;
+  word-break: break-word;
+}
+.discord-voice-line--speakers.discord-voice-line--speakers-on {
+  display: block;
+}
+.discord-voice-line--speakers .vc-speak-dot {
+  display: inline-block;
+  width: 5px;
+  height: 5px;
+  margin-right: 4px;
+  border-radius: 50%;
+  background: #4e8;
+  vertical-align: middle;
+  box-shadow: 0 0 4px rgba(80, 220, 140, 0.7);
+  animation: vc-speak-pulse 1s ease-in-out infinite;
+}
+@keyframes vc-speak-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.55; transform: scale(0.85); }
+}
+
+.discord-voice-wrap--visible #discord-voice-banner:empty { display: none; }
+
+.meme-mode-option.meme-opt-hidden { display: none; }
+
+.meme-mode-option {
+  display: block;
+  width: 100%;
+  margin: 8px;
+  padding: 10px 12px;
+  box-sizing: border-box;
+  max-width: calc(100% - 16px);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+  font-family: inherit;
+}
+.meme-mode-option.selected {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: rgba(74, 158, 255, 0.12);
+}
+
+.shop-scroll {
+  padding: 6px 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  font-size: 11px;
+}
+.shop-hint {
+  font-size: 9px;
+  color: var(--dim);
+  line-height: 1.35;
+}
+#shop-discord-input,
+.shop-inp {
+  width: 100%;
+  height: 28px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  font-size: 11px;
+  padding: 0 8px;
+  font-family: inherit;
+  outline: none;
+}
+.shop-bal {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--accent);
+}
+.shop-hub-status--ok {
+  font-size: 9px;
+  color: #7bdc9a;
+}
+.shop-hub-status--warn {
+  font-size: 9px;
+  color: #e8a074;
+}
+#shop-li-desc.shop-ta {
+  min-height: 44px;
+  resize: vertical;
+}
+.shop-card {
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  padding: 6px 8px;
+  background: var(--surface);
+  margin-bottom: 6px;
+}
+.shop-card-title { font-weight: 700; font-size: 11px; word-break: break-word; }
+.shop-card-meta { font-size: 10px; color: var(--dim); margin-top: 3px; }
+.shop-mini-btn {
+  margin-top: 5px;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--accent);
+  background: transparent;
+  color: var(--accent);
+  cursor: pointer;
+  font-family: inherit;
+}
+.shop-sect {
+  margin-top: 10px;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--dim);
+}
+
+.meme-menu-hint {
+  padding: 8px 14px;
+  font-size: 11px;
+  color: var(--dim);
+  line-height: 1.35;
+}
 </style>
 </head>
 <body>
@@ -344,12 +533,67 @@ html, body {
     <button type="button" class="back-btn" id="back-btn">&#8249;</button>
     <div class="header-title" id="channel-title"></div>
     <button type="button" class="log-open-btn log-open-btn--narrow" id="messages-log-btn">Log</button>
+    <button type="button" class="genre-btn" id="meme-menu-btn">Menu</button>
     <button type="button" class="genre-btn" id="genre-explore-btn">Genre</button>
   </div>
   <div id="genre-banner"></div>
+  <div id="discord-voice-wrap" class="discord-voice-wrap">
+    <div id="discord-voice-banner" class="discord-voice-line discord-voice-line--title"></div>
+    <div id="discord-voice-speaking" class="discord-voice-line discord-voice-line--speakers" aria-live="polite"></div>
+  </div>
+  <div id="meme-mode-banner"></div>
   <div id="message-list"></div>
   <div class="compose-bar">
     <button type="button" class="compose-open-btn" id="open-compose-btn">Type a message…</button>
+  </div>
+</div>
+
+<div id="screen-meme-menu" class="screen">
+  <div class="header">
+    <button type="button" class="back-btn" id="meme-menu-back">&#8249;</button>
+    <div class="header-title">Menu</div>
+  </div>
+  <div class="scroll-area">
+    <p class="meme-menu-hint">Genre, meme layout &amp; Discord voice. Voice: 🎙. Dashboard posts one stats embed into the open text channel.</p>
+    <button type="button" class="meme-mode-option" id="menu-genre-btn">Genre explore (micro-genre)</button>
+    <button type="button" class="meme-mode-option" id="menu-server-dashboard-btn">Server dashboard (Gemini changelog)</button>
+    <button type="button" class="meme-mode-option" id="menu-rabbit-shop-btn">Rabbit shop (economy)</button>
+    <button type="button" class="meme-mode-option meme-opt-hidden" id="menu-leave-voice-btn">Leave Discord voice</button>
+    <button type="button" class="meme-mode-option selected" id="meme-opt-normal">Normal chat (voice → text)</button>
+    <button type="button" class="meme-mode-option" id="meme-opt-1">1 image panel</button>
+    <button type="button" class="meme-mode-option" id="meme-opt-2">2 image panels</button>
+  </div>
+</div>
+
+<div id="screen-shop" class="screen">
+  <div class="header">
+    <button type="button" class="back-btn" id="shop-back-btn">&#8249;</button>
+    <div class="header-title">Rabbit shop</div>
+    <button type="button" class="log-open-btn log-open-btn--narrow" id="shop-refresh-btn" title="Reload">&#8635;</button>
+  </div>
+  <div class="scroll-area shop-scroll">
+    <p class="shop-hint">Paste your Discord user ID once (Developer Mode → profile → Copy user ID). It unlocks earns + buys on the Netlify-backed hub everyone points at.</p>
+    <div id="shop-hub-status-line" class="shop-hint shop-hub-status" aria-live="polite"></div>
+    <label class="shop-hint" for="shop-discord-input">Discord user ID</label>
+    <input id="shop-discord-input" type="text" maxlength="22" autocomplete="off" spellcheck="false" />
+    <div id="shop-balance-line" class="shop-bal"></div>
+    <div id="shop-list-mount"></div>
+
+    <div class="shop-sect">List a slash command SKU</div>
+    <input id="shop-li-cmd" class="shop-inp" placeholder="Slash name (keyboard opens suggestions)" maxlength="96" list="shop-slash-datalist" autocomplete="off" spellcheck="false" />
+    <datalist id="shop-slash-datalist"></datalist>
+    <input id="shop-li-title" class="shop-inp" placeholder="Listing title" maxlength="120" autocomplete="off" />
+    <input id="shop-li-price" class="shop-inp" placeholder="price in rabbit heads" inputmode="numeric" autocomplete="off" />
+    <input id="shop-li-ends" class="shop-inp" type="datetime-local" title="Listing auto-expiry (optional)" />
+    <textarea id="shop-li-desc" class="shop-inp shop-ta" placeholder="Notes (optional)" maxlength="500" spellcheck="false"></textarea>
+    <button type="button" class="meme-mode-option" id="shop-publish-btn">Publish listing</button>
+
+    <div class="shop-sect">Negotiate — offer Rabbit Heads</div>
+    <input id="shop-off-list-id" class="shop-inp" placeholder="paste listing UUID" maxlength="48" autocomplete="off" />
+    <input id="shop-off-price" class="shop-inp" placeholder="your bid amount" inputmode="numeric" autocomplete="off" />
+    <input id="shop-off-ends" class="shop-inp" type="datetime-local" title="Offer expires" />
+    <input id="shop-off-note" class="shop-inp" placeholder="seller note (optional)" maxlength="400" autocomplete="off" />
+    <button type="button" class="meme-mode-option" id="shop-off-submit-btn">Submit timed offer</button>
   </div>
 </div>
 
@@ -409,6 +653,6 @@ html, body {
 
 <div id="toast"></div>
 
-<script defer src="./app.js?v=r1dh3"></script>
+<script defer src="./app.js?v=r1dh26"></script>
 </body>
 </html>

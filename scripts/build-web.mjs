@@ -39,7 +39,7 @@ writeFileSync(
   }) + '\n',
 );
 
-/* Netlify: same-origin Discord REST avoids cross-origin/ngrok quirks in Rabbit WebViews; WS still hits tunnel URL from `backend`. */
+/* Netlify: same-origin Discord REST + /ws avoids cross-origin/tunnel quirks in Rabbit WebViews. Falls back client-side if /ws handshake fails. */
 const redirectsLines = [
   '# Genre (same-origin on Netlify)',
   '/api/genrenator-genre https://binaryjazz.us/wp-json/genrenator/v1/genre/ 200',
@@ -54,6 +54,12 @@ if (backendUrl) {
     `/channels ${b}/channels 200`,
     `/channels/* ${b}/channels/:splat 200`,
     `/health ${b}/health 200`,
+    `# Rabbit Heads shop endpoints (Creations REST → tunnel, same-origin as guilds/channels).`,
+    `/shop/catalog ${b}/shop/catalog 200`,
+    `/shop/action ${b}/shop/action 200`,
+    `/shop/status ${b}/shop/status 200`,
+    `# WebSocket to bot (embedded WebViews often block cross-origin wss → tunnel).`,
+    `/ws ${b}/ws 200`,
   );
 }
 writeFileSync(join(proj, 'web', '_redirects'), redirectsLines.join('\n') + '\n');

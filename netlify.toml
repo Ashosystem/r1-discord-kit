@@ -15,3 +15,11 @@
   for = "/app.js"
   [headers.values]
     Cache-Control = "public, max-age=0, must-revalidate"
+
+[functions]
+  directory = "netlify/functions"
+
+[[redirects]]
+  from = "/api/rabbit-shop"
+  to = "/.netlify/functions/rabbit-shop"
+  status = 200

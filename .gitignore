@@ -2,4 +2,10 @@ node_modules/
 .env
 /web/app.js
 /web/auto-backend.json
+# Generated locally / Netlify CI from BACKEND_PUBLIC_URL + R1_DISCORD_BACKEND_URL (tunnel URLs leak if committed)
+/web/_redirects
+
+shop/live-state.json
 .tunnel-url
+.DS_Store
+*.log

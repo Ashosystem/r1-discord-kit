@@ -4,6 +4,8 @@ A Discord client built for the **Rabbit R1** screen (240×282px). Self-hosted No
 
 Browse channels, read messages, send text and images, explore a genre-aware LLM helper, and use **push-to-talk**: in the browser, hold PTT (or Space) on the messages screen to record and send a **voice attachment** — the server transcodes when possible (**MP3** via ffmpeg) — and playback appears **inline** in the thread. On-device **Creation** voice APIs can still behave like STT and open compose when no MediaRecorder path is available.
 
+**Rabbit shop** (optional): a shared **rabbit heads** economy and slash-command marketplace UI + **`/rabbit-shop`** Discord slash, backed by a **Netlify serverless hub** (`netlify/functions/rabbit-shop.mjs`). Your bot tunnels REST through Netlify to the same Express host you use for Discord; the hub URL is separate (see [Rabbit shop](#rabbit-shop-rabbit-heads-hub)).
+
 ### Repository layout vs older forks
 
 Older snapshots kept a single root **`index.html`**. This branch serves the UI from **`web/`** ( **`web/index.html`** + bundled **`web/app.js`**). **`npm start`** runs **`npm run build:web`** first so the bundle is always current.
@@ -62,6 +64,7 @@ A small Express server runs on your machine (or a VPS). A Discord bot attached t
    - Read Message History
    - **Attach Files** (required so the bot can post voice-message attachments)
    - **Embed Links** (voice clips are sent with an embed helper)
+   - **Connect** and **Speak** (so the bot can join Discord **voice channels** when you tap 🎙 in the app — your microphone is streamed to the bot over the **`/ws` WebSocket** and played into Discord)
 4. Copy the generated URL, open it in a browser, and select your server from the dropdown. Click **Authorise**.
 
 Repeat for each server you want the bot in.
@@ -85,9 +88,9 @@ npm install
 npm run setup
 ```
 
-`setup.js` will ask for your bot token, server ID(s), and an optional auth token, then write a `.env` file.
+`setup.js` will ask for your bot token, server ID(s), optional **Rabbit shop** Netlify hostname and hub secret (see [below](#rabbit-shop-rabbit-heads-hub)), and an optional auth token, then write a `.env` file.
 
-Or copy `.env.example` to `.env` and fill it in manually.
+Or copy `.env.example` to `.env` and fill it in manually (see **`.env.example`** for `RABBIT_SHOP_*` shortcuts and **`BACKEND_PUBLIC_URL`** notes).
 
 ---
 
@@ -201,7 +204,29 @@ Resolution order (first match wins):
 3. **`localStorage` `r1_discord_backend`** — saved after a successful load; reuse on the R1 without repeating `?backend=` until the tunnel hostname changes.
 4. **Same origin** — if you open the app on **localhost** or on the **tunnel hostname** that already points at this server, the API is inferred from `location.origin`.
 
+**Two different URLs when you deploy the UI on Netlify**
+
+| Variable | Meaning |
+|---------|---------|
+| **`R1_DISCORD_BACKEND_URL`** (Netlify build env) | Public **`https://…`** where **this repo’s Express bot** listens (ngrok/cloudflared, etc.). Build writes **`web/_redirects`** so same-origin **`/guilds`**, **`/channels`**, **`/shop/catalog`**, **`/shop/action`**, **`/shop/status`**, **`/ws`**, … proxy to that host. **Update and redeploy** when your tunnel hostname changes. |
+| **Rabbit shop hub** (**`RABBIT_SHOP_*` / `SHOP_*` on the bot** in **`.env`**) | The **`https://<site>.netlify.app/.netlify/functions/rabbit-shop`** (or full URL) **plus** a shared **`RABBIT_SHOP_HUB_SECRET`** matching the Netlify site env. This is the **shared marketplace + balances** API, not the Discord bot host. |
+
+The in-app status line **“Hub OK (bot → Netlify)”** only means the **bot process** can POST to the hub; if listings still fail, check **`R1_DISCORD_BACKEND_URL`** matches your running tunnel and **redeploy** Netlify so **`_redirects`** stay current.
+
 **Netlify:** set **`R1_DISCORD_BACKEND_URL`** to your current **`https://…ngrok-free.app`** (or other tunnel) and **redeploy** when the free URL changes (or open once with **`?backend=`** so the device stores it in `localStorage`).
+
+---
+
+## Rabbit shop (Rabbit Heads hub)
+
+Optional cross-fork economy: **rabbit heads** accrue when the R1 UI sends actions with your Discord user id; you can **list / buy / offer / accept / withdraw** on slash-command SKUs and **remove** your own active listing from the shop screen.
+
+- **Hub deploy:** Netlify function **`rabbit-shop`** + site env **`RABBIT_SHOP_HUB_SECRET`**. Details and security notes: **[`shop/README.md`](shop/README.md)**.
+- **Bot host (`.env`):** either **`RABBIT_SHOP_HUB_URL`** (full function HTTPS URL) **or** **`RABBIT_SHOP_NETLIFY_HOST`** / aliases (`RABBIT_SHOP_SITE_HOST`, **`SHOP_NETLIFY_HOST`**) so the backend builds `/.netlify/functions/rabbit-shop` on that hostname; plus **`RABBIT_SHOP_HUB_SECRET`** or **`SHOP_HUB_SECRET`** identical to Netlify.
+- **REST (proxied via your bot):** **`GET /shop/catalog`**, **`GET /shop/status`** (diagnostics / reachability probe), **`POST /shop/action`** (mutations inject `secret` server-side). Discord slash **`/rabbit-shop`** posts a shop preview embed.
+- **Web UI:** Menu → **Rabbit shop**; SKU suggestions come from **`GET /guilds/:guildId/slash-commands`** (this bot’s **global + guild** slash commands, including nested `/group sub`-style names where applicable).
+
+After changing **`web/`** sources, run **`npm run build:web`** and redeploy Netlify **or** rely on **`prestart`** + **`npm start`** for localhost.
 
 ---
 
@@ -240,8 +265,27 @@ pm2 startup   # follow the printed command to enable autostart
 | `R1_AUTH_TOKEN` | No | Shared secret for UI/WS auth |
 | `GEMINI_API_KEY` | No | Google AI (Gemini) — genre-explore helper; see `.env.example` |
 | `GEMINI_MODEL` | No | Gemini model override (default in `.env.example`) |
+| `OPENAI_API_KEY` | No | **[Meme mode]** OpenAI API key ([platform.openai.com](https://platform.openai.com/api-keys)); required to post AI memes |
+| `OPENAI_IMAGE_MODEL` | No | **`gpt-image-2`** default — see [GPT Image 2](https://developers.openai.com/api/docs/models/gpt-image-2); override if your tier uses another snapshot |
+| `RABBIT_SHOP_HUB_URL` | No\* | Full HTTPS URL of **`rabbit-shop`** Netlify Function (alternative to building from host below) |
+| `RABBIT_SHOP_NETLIFY_HOST` | No\* | Hub site hostname (`mysite.netlify.app` or slug `mysite`); backend appends `/.netlify/functions/rabbit-shop` |
+| `RABBIT_SHOP_SITE_HOST`, `SHOP_NETLIFY_HOST` | No | Aliases for the same hostname intent as `RABBIT_SHOP_NETLIFY_HOST` |
+| `RABBIT_SHOP_HUB_SECRET`, `SHOP_HUB_SECRET` | No\* | Same value as **`RABBIT_SHOP_HUB_SECRET`** on Netlify; bot adds it only on mutating hub calls |
 
-See **`.env.example`** for **`NGROK_*`**, **`BACKEND_PUBLIC_URL`**, and tunnel-related notes used by **`scripts/`** and **`systemd/`**.
+\*Required together for earns, buys, offers, listings, remove-listing (`POST /shop/action`). Reads use the hub URL only; balances in catalog still benefit from secrets on earns.
+
+See **`.env.example`** for **`NGROK_*`**, **`BACKEND_PUBLIC_URL`** (local hint for **`scripts/build-web.mjs`** `_redirects` generation), and tunnel-related **`scripts/`** / **`systemd/`** usage.
+
+**Netlify build (Creations-hosted UI):** set **`R1_DISCORD_BACKEND_URL`** or **`NETLIFY_DISCORD_PROXY_URL`** to your tunnel; **`npm run build:web`** bakes **`web/auto-backend.json`** and **`web/_redirects`** (optional; see **`scripts/build-web.mjs`**).
+
+---
+
+## Discord voice (bot joins VC, PTT as the bot)
+
+- **Channels** lists text (`#name`) and voice (**🎙 name**). **Tap or long‑press** a 🎙 row → **`POST /voice/join`**; the bot joins using **`@discordjs/voice`**. A teal banner appears on **messages** when VC is attached.
+- On **messages**, with **`/ws`** connected and mic allowed, **hold PTT**: audio is chunked as **`vc_*`** frames on the WebSocket, **FFmpeg** resamples mono PCM → **48 kHz stereo**, and the bot **plays** into the channel (others hear your **bot** speaking).
+- **Menu → Leave Discord voice** (**`POST /voice/leave`**). Choosing another **server** also disconnects.
+- Discord VC PTT prefers **`AudioContext#createScriptProcessor`**. Narrow WebViews may fall back to text/STT only.
 
 ---
 
@@ -257,13 +301,28 @@ See **`.env.example`** for **`NGROK_*`**, **`BACKEND_PUBLIC_URL`**, and tunnel-r
 
 ---
 
+## Meme mode (OpenAI GPT Image)
+
+1. Tap **Menu** on the channel messages header (**Genre**, **leave voice**, meme layout rows).
+2. Return to messages; a violet banner confirms meme layout when active.
+3. **Hold PTT** (or Space on desktop): in **normal** mode, browsers still send voice files when supported; **in meme modes** the app forces **speech-to-text** (`Creation`/`STT` path on R1 **or** Web Speech elsewhere).
+4. Your transcript is sent to **`POST /channels/:id/meme-generate`**; the backend calls OpenAI **`v1/images/generations`** (**`OPENAI_IMAGE_MODEL`**, default **`gpt-image-2`**), then Discord receives **embed + `meme.png`** (captions are part of the image, not Discord body text).
+
+The server-side prompt nudges **pop‑culture meme energy** with an **extra absurdist “unhinged” punch** while remaining **safe-for-work / policy-aware** via the provider.
+
+Configure **`OPENAI_API_KEY`** and (optionally **`OPENAI_IMAGE_MODEL`**) in **`.env`**. Billing / access follows your OpenAI tier — see **[GPT Image 2](https://developers.openai.com/api/docs/models/gpt-image-2)** and the **[Images API](https://platform.openai.com/docs/api-reference/images/create)**.
+
+---
+
 ## R1 controls
 
 | Action | Result |
 |--------|--------|
 | Scroll up/down | Navigate list |
+| Browse channels list | **`#`** = text, **🎙** = tap / long‑press to join Discord voice |
 | Long press | Open selected item |
-| Long press (on messages) | Hold PTT: record voice (browser sends attachment; R1 may use STT → compose) |
+| **Menu** (messages header) | Genre, meme layout, Rabbit shop, leave voice |
+| Long press (on messages) | Hold PTT: Discord VC when joined (**🎙**); else meme/text/voice flow |
 | Release (after PTT) | Stop recording and send / finish STT |
 | Back button | Go back one screen |
 
@@ -284,4 +343,4 @@ This tree is newer than snapshots that shipped a root **`index.html`** only (UI 
 3. `git add -A && git commit -m "Voice PTT uploads, MP3 transcode, web bundle layout"` — then **`git pull origin main --rebase`** if the remote already has history, resolve any conflicts, and **`git push origin main`**.
 4. If the remote `main` is an unrelated old layout and you intend to replace it: coordinate a **force push** with repo owners (`git push --force-with-lease`) so outsiders are not silently broken — or open a **`v2`** branch first.
 
-_CI / Netlify_: `package.json` includes **`prestart`** (build web before `npm start`). Netlify/deploy should install dependencies and invoke your start or static build pipeline as documented in **`netlify.toml`** / **`README`**.
+_CI / Netlify_: `package.json` includes **`prestart`** (**`npm run build:web`** before **`npm start`**). Typical Netlify **`netlify.toml`** publishes **`web/`** and **`npm run build:web`**; serverless **`rabbit-shop`** lives under **`netlify/functions/`** (configure **`RABBIT_SHOP_HUB_SECRET`** in the Netlify UI).

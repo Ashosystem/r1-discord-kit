@@ -1,9 +1,0 @@
-# Genre (same-origin on Netlify)
-/api/genrenator-genre https://binaryjazz.us/wp-json/genrenator/v1/genre/ 200
-
-# Discord REST → tunnel (https://juicy-vicissitudinous-lachlan.ngrok-free.dev). Source: env R1_DISCORD_BACKEND_URL / NETLIFY_DISCORD_PROXY_URL or .env BACKEND_PUBLIC_URL
-/guilds https://juicy-vicissitudinous-lachlan.ngrok-free.dev/guilds 200
-/guilds/* https://juicy-vicissitudinous-lachlan.ngrok-free.dev/guilds/:splat 200
-/channels https://juicy-vicissitudinous-lachlan.ngrok-free.dev/channels 200
-/channels/* https://juicy-vicissitudinous-lachlan.ngrok-free.dev/channels/:splat 200
-/health https://juicy-vicissitudinous-lachlan.ngrok-free.dev/health 200
