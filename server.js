@@ -98,7 +98,10 @@ app.use(cors());
 app.use(express.json());
 
 app.get('/health', (req, res) => res.json({ status: 'ok', bot: client.user?.tag, guilds: GUILD_IDS }));
-app.get('/', (req, res) => res.sendFile(join(__dirname, 'index.html')));
+app.get('/', (req, res) => {
+  res.setHeader('Cache-Control', 'no-store');
+  res.sendFile(join(__dirname, 'index.html'));
+});
 
 // GET /guilds — list all configured guilds the bot can see
 app.get('/guilds', authMiddleware, (req, res) => {
