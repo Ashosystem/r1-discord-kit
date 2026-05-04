@@ -288,6 +288,7 @@ let ws               = null;
 let wsReconnectDelay = 1000;
 let recognition      = null;
 let isRecording      = false;
+const recentlySent   = new Set();
 
 // ── 3. DOM refs ───────────────────────────────────────────────────────────────
 const $ = id => document.getElementById(id);
@@ -485,6 +486,7 @@ async function sendMessage() {
       method: 'POST',
       body: JSON.stringify({ content }),
     });
+    recentlySent.add(result.message.id);
     composeTA.value = '';
     showScreen('messages');
     appendMessage(result.message);
@@ -506,6 +508,7 @@ function connectWS() {
     try {
       const data = JSON.parse(e.data);
       if (data.type === 'new_message' && currentChannel && data.channelId === currentChannel.id) {
+        if (recentlySent.has(data.message.id)) { recentlySent.delete(data.message.id); return; }
         appendMessage(data.message);
       }
     } catch (err) {}
