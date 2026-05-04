@@ -1,0 +1,642 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=240, initial-scale=1.0, user-scalable=no">
+<title>r1-discord</title>
+<style>
+:root {
+  --bg:      #0e0e0e;
+  --surface: #1a1a1a;
+  --border:  #2a2a2a;
+  --text:    #e0e0e0;
+  --dim:     #888888;
+  --accent:  #4a9eff;
+  --own-msg: #2a4a8f;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body {
+  width: 240px; height: 282px;
+  overflow: hidden;
+  background: var(--bg); color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-size: 13px;
+  touch-action: manipulation;
+}
+.screen { position: absolute; inset: 0; display: none; flex-direction: column; overflow: hidden; }
+.screen.active { display: flex; }
+
+.header {
+  flex-shrink: 0;
+  height: 36px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  padding: 0 10px;
+  gap: 8px;
+}
+.header-title {
+  font-weight: 700; font-size: 13px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  flex: 1;
+}
+.back-btn {
+  background: none; border: none; color: var(--accent);
+  font-size: 20px; cursor: pointer; padding: 0 2px; line-height: 1;
+  flex-shrink: 0;
+}
+
+.scroll-area { flex: 1; overflow-y: auto; overflow-x: hidden; }
+.scroll-area::-webkit-scrollbar { width: 3px; }
+.scroll-area::-webkit-scrollbar-thumb { background: var(--border); }
+
+/* Guild list */
+.guild-item {
+  display: flex;
+  align-items: center;
+  padding: 8px 10px;
+  cursor: pointer;
+  gap: 10px;
+  border-bottom: 1px solid var(--border);
+}
+.guild-item.selected { background: var(--surface); }
+.guild-icon {
+  width: 36px; height: 36px; border-radius: 50%;
+  background: var(--border);
+  flex-shrink: 0;
+  object-fit: cover;
+}
+.guild-icon-placeholder {
+  width: 36px; height: 36px; border-radius: 50%;
+  background: var(--accent);
+  flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 14px; font-weight: 700; color: #fff;
+}
+.guild-name {
+  font-size: 12px; font-weight: 600;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
+.category-header {
+  padding: 6px 10px 2px;
+  font-size: 10px; font-weight: 700;
+  color: var(--dim);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.channel-item {
+  padding: 6px 10px;
+  cursor: pointer;
+  font-size: 12px;
+  color: var(--dim);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.channel-item::before { content: '# '; }
+.channel-item.selected { background: var(--surface); color: var(--accent); }
+
+#message-list {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 6px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+#message-list::-webkit-scrollbar { width: 3px; }
+#message-list::-webkit-scrollbar-thumb { background: var(--border); }
+
+.message-bubble {
+  max-width: 85%; padding: 5px 8px; border-radius: 10px;
+  background: var(--surface); align-self: flex-start;
+  word-break: break-word; font-size: 12px; line-height: 1.4;
+}
+.message-bubble.own { align-self: flex-end; background: var(--own-msg); }
+.message-bubble.has-photo { max-width: 96%; }
+.message-author { font-size: 10px; font-weight: 700; color: var(--accent); margin-bottom: 2px; }
+.message-time   { font-size: 9px;  color: var(--dim); text-align: right; margin-top: 2px; }
+
+.compose-bar {
+  flex-shrink: 0;
+  height: 40px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  padding: 0 8px;
+}
+.compose-open-btn {
+  flex: 1; height: 28px;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 14px;
+  color: var(--dim); font-size: 12px; cursor: pointer;
+  text-align: left; padding: 0 12px;
+}
+
+#compose-textarea {
+  flex: 1;
+  background: var(--bg);
+  border: none; outline: none;
+  color: var(--text);
+  font-family: inherit; font-size: 13px;
+  padding: 10px;
+  resize: none;
+  line-height: 1.4;
+}
+
+.compose-actions {
+  flex-shrink: 0;
+  height: 40px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  gap: 8px;
+  padding: 0 8px;
+  align-items: center;
+}
+.btn {
+  flex: 1; height: 28px;
+  border: 1px solid var(--border); border-radius: 6px;
+  font-size: 12px; cursor: pointer; font-family: inherit;
+}
+.btn-cancel { background: var(--surface); color: var(--dim); }
+.btn-send   { background: var(--accent); color: #fff; border-color: var(--accent); font-weight: 700; }
+.btn-send:disabled { opacity: 0.5; }
+
+#loading-overlay {
+  position: absolute; inset: 0;
+  background: var(--bg);
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  gap: 8px;
+  z-index: 100;
+}
+#loading-overlay.hidden { display: none; }
+#loading-text { font-size: 12px; color: var(--dim); }
+.spinner {
+  width: 20px; height: 20px;
+  border: 2px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+#recording-indicator {
+  position: absolute;
+  top: 36px; left: 0; right: 0;
+  height: 26px;
+  background: rgba(200, 30, 30, 0.92);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 11px; color: #fff; font-weight: 700;
+  letter-spacing: 0.5px;
+  z-index: 50;
+  opacity: 0; pointer-events: none;
+  transition: opacity 0.15s;
+}
+#recording-indicator.active { opacity: 1; }
+
+#toast {
+  position: absolute; bottom: 48px; left: 50%;
+  transform: translateX(-50%);
+  background: #333; color: var(--text);
+  padding: 5px 12px; border-radius: 12px;
+  font-size: 11px; white-space: nowrap;
+  opacity: 0; pointer-events: none;
+  transition: opacity 0.2s;
+  z-index: 200;
+}
+#toast.show { opacity: 1; }
+</style>
+</head>
+<body>
+
+<!-- screen: guilds -->
+<div id="screen-guilds" class="screen">
+  <div class="header">
+    <div class="header-title">Servers</div>
+  </div>
+  <div class="scroll-area" id="guild-list"></div>
+</div>
+
+<!-- screen: channels -->
+<div id="screen-channels" class="screen">
+  <div class="header">
+    <button class="back-btn" id="channels-back-btn">&#8249;</button>
+    <div class="header-title" id="server-name">Discord</div>
+  </div>
+  <div class="scroll-area" id="channel-list"></div>
+</div>
+
+<!-- screen: messages -->
+<div id="screen-messages" class="screen">
+  <div class="header">
+    <button class="back-btn" id="back-btn">&#8249;</button>
+    <div class="header-title" id="channel-title"></div>
+  </div>
+  <div id="message-list"></div>
+  <div class="compose-bar">
+    <button class="compose-open-btn" id="open-compose-btn">Type a message…</button>
+  </div>
+</div>
+
+<!-- screen: compose -->
+<div id="screen-compose" class="screen">
+  <div class="header">
+    <div class="header-title" id="compose-channel-name"></div>
+  </div>
+  <textarea
+    id="compose-textarea"
+    placeholder="Type a message…"
+    spellcheck="false"
+    autocorrect="off"
+    autocapitalize="sentences"
+    autocomplete="off"
+  ></textarea>
+  <div class="compose-actions">
+    <button class="btn btn-cancel" id="cancel-btn">Cancel</button>
+    <button class="btn btn-send"   id="send-btn">Send</button>
+  </div>
+</div>
+
+<!-- recording indicator -->
+<div id="recording-indicator">&#9679; LISTENING</div>
+
+<!-- loading overlay -->
+<div id="loading-overlay">
+  <div class="spinner"></div>
+  <div id="loading-text">Connecting…</div>
+</div>
+
+<!-- toast -->
+<div id="toast"></div>
+
+<script>
+// ── 1. Config ─────────────────────────────────────────────────────────────────
+const params   = new URLSearchParams(location.search);
+const BACKEND  = (params.get('backend') || location.origin).replace(/\/$/, '');
+const TOKEN    = params.get('token') || '';
+
+// ── 2. State ──────────────────────────────────────────────────────────────────
+let guilds           = [];
+let currentGuild     = null;
+let channels         = [];
+let currentChannel   = null;
+let messages         = [];
+let selectedIdx      = 0;
+let currentScreen    = '';
+let ws               = null;
+let wsReconnectDelay = 1000;
+let recognition      = null;
+let isRecording      = false;
+
+// ── 3. DOM refs ───────────────────────────────────────────────────────────────
+const $ = id => document.getElementById(id);
+const recIndicator  = $('recording-indicator');
+const loadingEl     = $('loading-overlay');
+const loadingTextEl = $('loading-text');
+const toastEl       = $('toast');
+const guildListEl   = $('guild-list');
+const channelListEl = $('channel-list');
+const messageListEl = $('message-list');
+const composeTA     = $('compose-textarea');
+
+// ── R1 native STT bridge ──────────────────────────────────────────────────────
+window.onPluginMessage = function(data) {
+  if (!data || typeof data !== 'object') return;
+  if (data.type === 'sttEnded') {
+    isRecording = false;
+    recIndicator.classList.remove('active');
+    const text = (data.transcript || '').trim();
+    if (text) { composeTA.value = text; showScreen('compose'); }
+    else { showToast('No speech detected'); }
+  }
+};
+
+// ── 4. showScreen ─────────────────────────────────────────────────────────────
+function showScreen(name) {
+  currentScreen = name;
+  $('screen-guilds').classList.toggle('active',    name === 'guilds');
+  $('screen-channels').classList.toggle('active',  name === 'channels');
+  $('screen-messages').classList.toggle('active',  name === 'messages');
+  $('screen-compose').classList.toggle('active',   name === 'compose');
+  if (name === 'compose') setTimeout(() => composeTA.focus(), 50);
+}
+
+// ── 5. Loading ────────────────────────────────────────────────────────────────
+function showLoading(text) { loadingTextEl.textContent = text || 'Loading…'; loadingEl.classList.remove('hidden'); }
+function hideLoading()     { loadingEl.classList.add('hidden'); }
+
+// ── 6. Toast ──────────────────────────────────────────────────────────────────
+let toastTimer = null;
+function showToast(msg, duration) {
+  toastEl.textContent = msg;
+  toastEl.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => toastEl.classList.remove('show'), duration || 2000);
+}
+
+// ── 7. Helpers ────────────────────────────────────────────────────────────────
+function relativeTime(tsMs) {
+  const diff = Date.now() - tsMs;
+  if (diff < 60000)    return 'just now';
+  if (diff < 3600000)  return Math.floor(diff / 60000) + 'm ago';
+  if (diff < 86400000) return Math.floor(diff / 3600000) + 'h ago';
+  return Math.floor(diff / 86400000) + 'd ago';
+}
+
+function escapeHtml(str) {
+  return String(str)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+// ── 8. api ────────────────────────────────────────────────────────────────────
+async function api(path, opts) {
+  const headers = { 'Content-Type': 'application/json' };
+  if (TOKEN) headers['Authorization'] = 'Bearer ' + TOKEN;
+  const res = await fetch(BACKEND + path, Object.assign({}, opts, { headers: Object.assign(headers, (opts && opts.headers) || {}) }));
+  if (!res.ok) throw new Error('HTTP ' + res.status);
+  return res.json();
+}
+
+// ── 9. renderGuildList ────────────────────────────────────────────────────────
+function renderGuildList() {
+  guildListEl.innerHTML = guilds.map((g, i) => {
+    const icon = g.iconURL
+      ? `<img class="guild-icon" src="${escapeHtml(g.iconURL)}" loading="lazy">`
+      : `<div class="guild-icon-placeholder">${escapeHtml(g.name[0].toUpperCase())}</div>`;
+    return `<div class="guild-item${i === selectedIdx ? ' selected' : ''}" data-idx="${i}">${icon}<div class="guild-name">${escapeHtml(g.name)}</div></div>`;
+  }).join('');
+  const sel = guildListEl.querySelector('.selected');
+  if (sel) sel.scrollIntoView({ block: 'nearest' });
+}
+
+// ── 10. renderChannelList ─────────────────────────────────────────────────────
+function renderChannelList() {
+  let html = '', lastCat = null;
+  channels.forEach(function(ch, i) {
+    if (ch.category !== lastCat) {
+      html += '<div class="category-header">' + escapeHtml(ch.category) + '</div>';
+      lastCat = ch.category;
+    }
+    html += '<div class="channel-item' + (i === selectedIdx ? ' selected' : '') + '" data-idx="' + i + '">' + escapeHtml(ch.name) + '</div>';
+  });
+  channelListEl.innerHTML = html;
+  const sel = channelListEl.querySelector('.selected');
+  if (sel) sel.scrollIntoView({ block: 'nearest' });
+}
+
+// ── 11. renderMessages ────────────────────────────────────────────────────────
+function renderMessages() {
+  messageListEl.innerHTML = messages.map(bubbleHtml).join('');
+  scrollToBottom();
+}
+
+function bubbleHtml(m) {
+  const textBody = m.hasAudio ? '🎤 Voice message' : escapeHtml(m.content || '');
+  const hasImgs  = (m.images || []).length > 0;
+  const imgs = (m.images || []).map(url =>
+    `<img src="${escapeHtml(url)}" style="max-width:100%;border-radius:5px;margin-top:3px;display:block;" loading="lazy">`
+  ).join('');
+  return `<div class="message-bubble${m.isOwn ? ' own' : ''}${hasImgs ? ' has-photo' : ''}">`
+    + (m.isOwn ? '' : `<div class="message-author">${escapeHtml(m.author)}</div>`)
+    + (textBody ? `<div>${textBody}</div>` : '')
+    + imgs
+    + `<div class="message-time">${relativeTime(m.timestamp)}</div></div>`;
+}
+
+function appendMessage(msg) {
+  const near = isNearBottom();
+  const wrap = document.createElement('div');
+  wrap.innerHTML = bubbleHtml(msg);
+  messageListEl.appendChild(wrap.firstElementChild);
+  if (near) scrollToBottom();
+}
+
+function isNearBottom() {
+  return messageListEl.scrollHeight - messageListEl.scrollTop - messageListEl.clientHeight < 60;
+}
+
+function scrollToBottom() { messageListEl.scrollTop = messageListEl.scrollHeight; }
+
+// ── 12. loadGuilds ────────────────────────────────────────────────────────────
+async function loadGuilds() {
+  showLoading('Loading servers…');
+  try {
+    guilds = await api('/guilds');
+    selectedIdx = 0;
+    renderGuildList();
+    // If only one guild, skip the picker and go straight to channels
+    if (guilds.length === 1) {
+      await openGuild(guilds[0]);
+      return;
+    }
+    showScreen('guilds');
+  } catch (e) {
+    showToast('Failed to load servers');
+    showScreen('guilds');
+  } finally {
+    hideLoading();
+  }
+}
+
+// ── 13. openGuild ─────────────────────────────────────────────────────────────
+async function openGuild(g) {
+  currentGuild = g;
+  $('server-name').textContent = g.name;
+  showLoading('Loading channels…');
+  try {
+    channels = await api('/channels?guild=' + g.id);
+    selectedIdx = 0;
+    renderChannelList();
+    showScreen('channels');
+  } catch (e) {
+    showToast('Failed to load channels');
+  } finally {
+    hideLoading();
+  }
+}
+
+// ── 14. openChannel ───────────────────────────────────────────────────────────
+async function openChannel(ch) {
+  currentChannel = ch;
+  $('channel-title').textContent = '#' + ch.name;
+  $('compose-channel-name').textContent = '#' + ch.name;
+  showScreen('messages');
+  showLoading('Loading…');
+  try {
+    messages = await api('/channels/' + ch.id + '/messages?limit=30');
+    renderMessages();
+  } catch (e) {
+    showToast('Failed to load messages');
+  } finally {
+    hideLoading();
+  }
+}
+
+// ── 15. sendMessage ───────────────────────────────────────────────────────────
+async function sendMessage() {
+  const content = composeTA.value.trim();
+  if (!content || !currentChannel) return;
+  const sendBtn = $('send-btn');
+  sendBtn.disabled = true;
+  try {
+    const result = await api('/channels/' + currentChannel.id + '/send', {
+      method: 'POST',
+      body: JSON.stringify({ content }),
+    });
+    composeTA.value = '';
+    showScreen('messages');
+    appendMessage(result.message);
+  } catch (e) {
+    showToast('Send failed');
+  } finally {
+    sendBtn.disabled = false;
+  }
+}
+
+// ── 16. connectWS ─────────────────────────────────────────────────────────────
+function connectWS() {
+  const proto = BACKEND.startsWith('https') ? 'wss' : 'ws';
+  const host  = BACKEND.replace(/^https?:\/\//, '');
+  const url   = proto + '://' + host + '/ws' + (TOKEN ? '?token=' + TOKEN : '');
+  ws = new WebSocket(url);
+  ws.onopen = function() { wsReconnectDelay = 1000; };
+  ws.onmessage = function(e) {
+    try {
+      const data = JSON.parse(e.data);
+      if (data.type === 'new_message' && currentChannel && data.channelId === currentChannel.id) {
+        appendMessage(data.message);
+      }
+    } catch (err) {}
+  };
+  ws.onclose = function() { setTimeout(connectWS, wsReconnectDelay); wsReconnectDelay = Math.min(wsReconnectDelay * 2, 30000); };
+  ws.onerror = function() { ws.close(); };
+}
+
+// ── 17. Voice ─────────────────────────────────────────────────────────────────
+function initRecognition() {
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR) return null;
+  const r = new SR();
+  r.continuous = true; r.interimResults = false; r.lang = 'en-US';
+  let pending = '';
+  r.onresult = function(e) {
+    for (let i = e.resultIndex; i < e.results.length; i++) {
+      if (e.results[i].isFinal) pending += e.results[i][0].transcript;
+    }
+  };
+  r.onerror = function(e) { if (e.error !== 'no-speech') { stopListening(); showToast('Voice error'); } };
+  r.onend   = function()  { if (isRecording) { try { r.start(); } catch (err) {} } };
+  r._getPending = function() { return pending; };
+  return r;
+}
+
+function startListening() {
+  if (!currentChannel || isRecording) return;
+  if (typeof CreationVoiceHandler !== 'undefined') {
+    isRecording = true; recIndicator.classList.add('active');
+    CreationVoiceHandler.postMessage('start'); return;
+  }
+  if (!recognition) recognition = initRecognition();
+  if (!recognition) { showToast('STT not supported'); return; }
+  try { recognition.start(); isRecording = true; recIndicator.classList.add('active'); }
+  catch (e) { showToast('Mic unavailable'); }
+}
+
+function stopListening() {
+  if (!isRecording) return;
+  if (typeof CreationVoiceHandler !== 'undefined') { CreationVoiceHandler.postMessage('stop'); return; }
+  isRecording = false; recIndicator.classList.remove('active');
+  const text = recognition ? recognition._getPending().trim() : '';
+  try { if (recognition) recognition.stop(); } catch (e) {}
+  if (text) { composeTA.value = text; showScreen('compose'); }
+  else { showToast('No speech detected'); }
+}
+
+// ── 18. Scroll ────────────────────────────────────────────────────────────────
+window.addEventListener('scrollUp', function() {
+  if (currentScreen === 'compose') return;
+  if (currentScreen === 'guilds') {
+    if (selectedIdx > 0) { selectedIdx--; renderGuildList(); }
+  } else if (currentScreen === 'channels') {
+    if (selectedIdx > 0) { selectedIdx--; renderChannelList(); }
+  } else if (currentScreen === 'messages') {
+    messageListEl.scrollBy(0, -60);
+  }
+});
+window.addEventListener('scrollDown', function() {
+  if (currentScreen === 'compose') return;
+  if (currentScreen === 'guilds') {
+    if (selectedIdx < guilds.length - 1) { selectedIdx++; renderGuildList(); }
+  } else if (currentScreen === 'channels') {
+    if (selectedIdx < channels.length - 1) { selectedIdx++; renderChannelList(); }
+  } else if (currentScreen === 'messages') {
+    messageListEl.scrollBy(0, 60);
+  }
+});
+
+// ── 19. Long press ────────────────────────────────────────────────────────────
+window.addEventListener('longPressStart', function() {
+  if (currentScreen === 'compose') return;
+  if (currentScreen === 'guilds' && guilds[selectedIdx]) {
+    openGuild(guilds[selectedIdx]);
+  } else if (currentScreen === 'channels' && channels[selectedIdx]) {
+    openChannel(channels[selectedIdx]);
+  } else if (currentScreen === 'messages') {
+    startListening();
+  }
+});
+window.addEventListener('longPressEnd', function() {
+  if (currentScreen === 'messages' && isRecording) stopListening();
+});
+
+// ── 20. Keyboard ──────────────────────────────────────────────────────────────
+document.addEventListener('keydown', function(e) {
+  if (currentScreen === 'compose') return;
+  if (e.key === ' ' || e.code === 'Space') {
+    e.preventDefault();
+    window.dispatchEvent(new Event('longPressStart'));
+  }
+});
+document.addEventListener('keyup', function(e) {
+  if (currentScreen === 'compose') return;
+  if (e.key === ' ' || e.code === 'Space') {
+    e.preventDefault();
+    window.dispatchEvent(new Event('longPressEnd'));
+  }
+});
+
+composeTA.addEventListener('keydown', function(e) {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+});
+
+// ── 21. Button/click handlers ─────────────────────────────────────────────────
+$('channels-back-btn').addEventListener('click', function() { showScreen('guilds'); });
+$('back-btn').addEventListener('click', function() { showScreen('channels'); });
+$('open-compose-btn').addEventListener('click', function() { if (!currentChannel) return; showScreen('compose'); });
+$('cancel-btn').addEventListener('click', function() { composeTA.value = ''; showScreen('messages'); });
+$('send-btn').addEventListener('click', function() { sendMessage(); });
+
+guildListEl.addEventListener('click', function(e) {
+  const item = e.target.closest('.guild-item');
+  if (!item) return;
+  const idx = parseInt(item.dataset.idx, 10);
+  if (!isNaN(idx) && guilds[idx]) { selectedIdx = idx; openGuild(guilds[idx]); }
+});
+
+channelListEl.addEventListener('click', function(e) {
+  const item = e.target.closest('.channel-item');
+  if (!item) return;
+  const idx = parseInt(item.dataset.idx, 10);
+  if (!isNaN(idx) && channels[idx]) { selectedIdx = idx; openChannel(channels[idx]); }
+});
+
+// ── 22. Init ──────────────────────────────────────────────────────────────────
+(async function init() {
+  await loadGuilds();
+  connectWS();
+})();
+</script>
+</body>
+</html>
