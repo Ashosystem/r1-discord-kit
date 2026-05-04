@@ -81,6 +81,10 @@ function formatMessage(msg) {
   };
 }
 
+client.on('channelCreate', (ch) => { if (GUILD_IDS.includes(ch.guildId)) refreshGuildCache(ch.guildId); });
+client.on('channelDelete', (ch) => { if (GUILD_IDS.includes(ch.guildId)) refreshGuildCache(ch.guildId); });
+client.on('channelUpdate', (_, ch) => { if (GUILD_IDS.includes(ch.guildId)) refreshGuildCache(ch.guildId); });
+
 client.on('messageCreate', (message) => {
   if (!GUILD_IDS.includes(message.guildId)) return;
   const payload = JSON.stringify({ type: 'new_message', guildId: message.guildId, channelId: message.channelId, message: formatMessage(message) });
