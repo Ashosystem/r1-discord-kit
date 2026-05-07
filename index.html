@@ -242,20 +242,26 @@ body.in-landscape #compose-history { display: none; }
   color: var(--text);
   border: 1px solid var(--border);
 }
-#compose-display:empty::before { content: 'Type a message…'; color: var(--dim); }
-#compose-display::after {
-  content: '';
-  display: inline-block;
-  width: 1.5px;
-  height: 0.85em;
-  background: var(--accent);
-  margin-left: 1px;
-  vertical-align: -0.05em;
-  animation: cursor-blink 1s step-end infinite;
+#compose-display:empty::before { content: 'Type a message…'; color: var(--dim); pointer-events: none; }
+#compose-display:focus { outline: none; }
+#compose-display { caret-color: var(--accent); }
+
+#compose-area {
+  flex-shrink: 0;
+  position: relative;
+  margin: 3px 8px 3px;
 }
-@keyframes cursor-blink {
-  0%, 100% { opacity: 1; }
-  50%       { opacity: 0; }
+#compose-area #compose-display {
+  margin: 0;
+  padding-right: 22px;
+}
+#kbd-dismiss-btn {
+  position: absolute;
+  top: 3px; right: 4px;
+  background: none; border: none; color: var(--dim);
+  font-size: 14px; line-height: 1; cursor: pointer; padding: 2px;
+  touch-action: manipulation;
+  user-select: none; -webkit-user-select: none;
 }
 
 #compose-history {
@@ -312,6 +318,68 @@ body.in-landscape #compose-history { display: none; }
 .key.action { background: #3a6abf; border-color: #2a4a9f; }
 .key.action:active { background: #4a7acf; }
 .key.shifted { background: #3a3a44; color: #aad4ff; }
+
+/* Emoji picker */
+#emoji-backdrop {
+  position: absolute; inset: 0; z-index: 199; display: none;
+}
+#emoji-backdrop.open { display: block; }
+#emoji-picker {
+  position: absolute;
+  z-index: 200;
+  bottom: 4px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 232px;
+  max-height: 156px;
+  background: #1e1e24;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 6px;
+  overflow-y: auto;
+  display: none;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.6);
+}
+#emoji-picker.open { display: block; }
+#emoji-picker::-webkit-scrollbar { width: 2px; }
+#emoji-picker::-webkit-scrollbar-thumb { background: var(--border); }
+.emoji-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+}
+.emoji-btn {
+  font-size: 17px;
+  height: 28px;
+  background: none; border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  touch-action: manipulation;
+}
+.emoji-btn:active { background: var(--border); }
+
+/* Audio player */
+.audio-player {
+  display: flex; align-items: center; gap: 6px;
+  background: rgba(74,158,255,0.1);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 4px 7px;
+  margin-top: 3px;
+  cursor: pointer;
+  touch-action: manipulation;
+  user-select: none; -webkit-user-select: none;
+}
+.audio-play-btn {
+  font-size: 13px; flex-shrink: 0; pointer-events: none;
+}
+.audio-file-name {
+  font-size: 10px; color: var(--dim);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  pointer-events: none;
+}
+.audio-player.playing { border-color: var(--accent); background: rgba(74,158,255,0.18); }
 
 .compose-actions {
   flex-shrink: 0;
@@ -422,7 +490,10 @@ body.in-landscape #compose-history { display: none; }
     <button class="btn btn-send" id="send-btn" style="flex:0;padding:0 10px;height:26px;font-size:11px;">Send</button>
   </div>
   <div id="compose-history"></div>
-  <div id="compose-display"></div>
+  <div id="compose-area">
+    <div id="compose-display" contenteditable="true" spellcheck="false" inputmode="none"></div>
+    <button id="kbd-dismiss-btn" title="Back to chat">&#8964;</button>
+  </div>
   <div id="virtual-keyboard">
     <div class="kbd-row">
       <button class="key" data-k="q">q</button><button class="key" data-k="w">w</button><button class="key" data-k="e">e</button><button class="key" data-k="r">r</button><button class="key" data-k="t">t</button><button class="key" data-k="y">y</button><button class="key" data-k="u">u</button><button class="key" data-k="i">i</button><button class="key" data-k="o">o</button><button class="key" data-k="p">p</button>
@@ -437,7 +508,7 @@ body.in-landscape #compose-history { display: none; }
     </div>
     <div class="kbd-row">
       <button class="key wide" id="kbd-sym">?123</button>
-      <button class="key" data-k=",">,</button>
+      <button class="key" id="kbd-emoji">😊</button>
       <button class="key space" id="kbd-space">space</button>
       <button class="key" data-k=".">.</button>
       <button class="key wide action" id="kbd-enter">&#9166;</button>
@@ -456,6 +527,10 @@ body.in-landscape #compose-history { display: none; }
 
 <!-- toast -->
 <div id="toast"></div>
+
+<!-- emoji picker -->
+<div id="emoji-backdrop"></div>
+<div id="emoji-picker"><div class="emoji-grid" id="emoji-grid"></div></div>
 
 </div><!-- #app -->
 
@@ -494,6 +569,31 @@ const messageListEl = $('message-list');
 const newMsgBanner  = $('new-msg-banner');
 const composeDisplay = $('compose-display');
 
+function insertAtCursor(text) {
+  composeDisplay.focus();
+  document.execCommand('insertText', false, text);
+}
+function deleteAtCursor() {
+  composeDisplay.focus();
+  document.execCommand('delete');
+}
+function clearCompose() {
+  composeDisplay.innerHTML = '';
+  composeDisplay.focus();
+}
+function setCompose(text) {
+  composeDisplay.textContent = text;
+  const range = document.createRange();
+  range.selectNodeContents(composeDisplay);
+  range.collapse(false);
+  const sel = window.getSelection();
+  sel.removeAllRanges();
+  sel.addRange(range);
+}
+function getCompose() {
+  return (composeDisplay.innerText || '').trim();
+}
+
 // ── R1 native STT bridge ──────────────────────────────────────────────────────
 window.onPluginMessage = function(data) {
   if (!data || typeof data !== 'object') return;
@@ -501,7 +601,7 @@ window.onPluginMessage = function(data) {
     isRecording = false;
     recIndicator.classList.remove('active');
     const text = (data.transcript || '').trim();
-    if (text) { composeDisplay.textContent = text; showScreen('compose'); }
+    if (text) { setCompose(text); showScreen('compose'); }
     else { showToast('No speech detected'); }
   }
 };
@@ -521,7 +621,7 @@ function showScreen(name) {
   $('screen-channels').classList.toggle('active',  name === 'channels');
   $('screen-messages').classList.toggle('active',  name === 'messages');
   $('screen-compose').classList.toggle('active',   name === 'compose');
-  if (name === 'compose') populateComposeHistory();
+  if (name === 'compose') { populateComposeHistory(); setTimeout(() => composeDisplay.focus(), 50); }
 }
 
 // ── 5. Loading ────────────────────────────────────────────────────────────────
@@ -588,7 +688,11 @@ async function api(path, opts) {
   const headers = { 'Content-Type': 'application/json' };
   if (TOKEN) headers['Authorization'] = 'Bearer ' + TOKEN;
   const res = await fetch(BACKEND + path, Object.assign({}, opts, { headers: Object.assign(headers, (opts && opts.headers) || {}) }));
-  if (!res.ok) throw new Error('HTTP ' + res.status);
+  if (!res.ok) {
+    let msg = 'HTTP ' + res.status;
+    try { const j = await res.json(); if (j.error) msg += ': ' + j.error; } catch(e) {}
+    throw new Error(msg);
+  }
   return res.json();
 }
 
@@ -648,7 +752,7 @@ function bubbleHtml(m, prev, idx) {
     return `<div class="system-msg">${escapeHtml(m.systemContent || '')}</div>`;
   }
   const grouped = !m.isOwn && prev && !prev.isSystem && prev.authorId === m.authorId && !m.replyTo;
-  const textBody = m.hasAudio ? '🎤 Voice message' : discordToHtml(m.content || '');
+  const textBody = discordToHtml(m.content || '');
   const hasImgs  = (m.images || []).length > 0;
   const imgs = (m.images || []).map(url =>
     `<img src="${escapeHtml(url)}" style="max-width:100%;border-radius:5px;margin-top:3px;display:block;" loading="lazy">`
@@ -662,6 +766,9 @@ function bubbleHtml(m, prev, idx) {
   const replyHtml = m.replyTo
     ? `<div class="msg-reply"><span class="msg-reply-author">${escapeHtml(m.replyTo.author)}</span>${escapeHtml(m.replyTo.content)}</div>`
     : '';
+  const audioHtml = (m.audioFiles || []).map((af, ai) =>
+    `<div class="audio-player" data-url="${escapeHtml(af.url)}" data-ai="${ai}"><span class="audio-play-btn">▶</span><span class="audio-file-name">${escapeHtml(af.name.slice(0, 28))}</span></div>`
+  ).join('');
   const reactHtml = (m.reactions || []).length
     ? `<div class="msg-reactions">${m.reactions.map(r => `<span class="msg-reaction">${escapeHtml(r.emoji)} ${r.count}</span>`).join('')}</div>`
     : '';
@@ -671,13 +778,39 @@ function bubbleHtml(m, prev, idx) {
     + (!m.isOwn && !grouped ? `<div class="message-author">${escapeHtml(m.author)}</div>` : '')
     + (textBody ? `<div>${textBody}</div>` : '')
     + embedsHtml
+    + audioHtml
     + imgs
     + reactHtml
     + `<div class="message-time">${relativeTime(m.timestamp)}</div></div>`;
   const di = idx !== undefined ? ` data-idx="${idx}"` : '';
-  if (m.isOwn) return `<div class="msg-row own"${di}>${bubble}</div>`;
-  if (grouped) return `<div class="msg-row grouped"${di}>${bubble}</div>`;
-  return `<div class="msg-row"${di}>${avatarHtml(m)}${bubble}</div>`;
+  const dm = m.id ? ` data-msgid="${escapeHtml(m.id)}"` : '';
+  if (m.isOwn) return `<div class="msg-row own"${di}${dm}>${bubble}</div>`;
+  if (grouped) return `<div class="msg-row grouped"${di}${dm}>${bubble}</div>`;
+  return `<div class="msg-row"${di}${dm}>${avatarHtml(m)}${bubble}</div>`;
+}
+
+function addReactionToMessage(msgId, emoji) {
+  const row = messageListEl.querySelector('.msg-row[data-msgid="' + msgId + '"]');
+  if (!row) return;
+  const bubble = row.querySelector('.message-bubble');
+  if (!bubble) return;
+  let reactionsEl = bubble.querySelector('.msg-reactions');
+  if (!reactionsEl) {
+    reactionsEl = document.createElement('div');
+    reactionsEl.className = 'msg-reactions';
+    const timeEl = bubble.querySelector('.message-time');
+    timeEl ? bubble.insertBefore(reactionsEl, timeEl) : bubble.appendChild(reactionsEl);
+  }
+  const existing = [...reactionsEl.querySelectorAll('.msg-reaction')].find(el => el.textContent.trim().startsWith(emoji));
+  if (existing) {
+    const n = parseInt(existing.textContent.trim().split(' ').pop()) || 1;
+    existing.textContent = emoji + ' ' + (n + 1);
+  } else {
+    const span = document.createElement('span');
+    span.className = 'msg-reaction';
+    span.textContent = emoji + ' 1';
+    reactionsEl.appendChild(span);
+  }
 }
 
 function appendMessage(msg) {
@@ -763,7 +896,7 @@ async function openChannel(ch) {
 
 // ── 15. sendMessage ───────────────────────────────────────────────────────────
 async function sendMessage() {
-  const content = composeDisplay.textContent.trim();
+  const content = getCompose();
   if (!content || !currentChannel) return;
   const sendBtn = $('send-btn');
   sendBtn.disabled = true;
@@ -773,7 +906,7 @@ async function sendMessage() {
       body: JSON.stringify({ content, replyTo: replyTarget?.id || null }),
     });
     setReplyTarget(null);
-    composeDisplay.textContent = '';
+    clearCompose();
     showScreen('messages');
     appendMessage(result.message);
   } catch (e) {
@@ -845,7 +978,7 @@ function stopListening() {
   isRecording = false; recIndicator.classList.remove('active');
   const text = recognition ? recognition._getPending().trim() : '';
   try { if (recognition) recognition.stop(); } catch (e) {}
-  if (text) { composeDisplay.textContent = text; showScreen('compose'); }
+  if (text) { setCompose(text); showScreen('compose'); }
   else { showToast('No speech detected'); }
 }
 
@@ -970,15 +1103,16 @@ document.addEventListener('keyup', function(e) {
     } else if (id === 'kbd-sym') {
       symMode = !symMode; applySymMode();
     } else if (id === 'kbd-back') {
-      const d = composeDisplay;
-      if (d.textContent.length) d.textContent = d.textContent.slice(0, -1);
+      deleteAtCursor();
     } else if (id === 'kbd-space') {
-      composeDisplay.textContent += ' ';
+      insertAtCursor(' ');
     } else if (id === 'kbd-enter') {
       sendMessage();
+    } else if (id === 'kbd-emoji') {
+      openEmojiPicker('insert');
     } else if (v) {
       const ch = (shifted && !symMode) ? v.toUpperCase() : v;
-      composeDisplay.textContent += ch;
+      insertAtCursor(ch);
       if (shifted && !symMode) { shifted = false; applyShift(); }
     }
   });
@@ -999,8 +1133,9 @@ messageListEl.addEventListener('scroll', function() {
 $('channels-back-btn').addEventListener('click', function() { showScreen('guilds'); });
 $('back-btn').addEventListener('click', function() { showScreen('channels'); });
 $('open-compose-btn').addEventListener('click', function() { if (!currentChannel) return; showScreen('compose'); });
-$('cancel-btn').addEventListener('click', function() { composeDisplay.textContent = ''; showScreen('messages'); });
+$('cancel-btn').addEventListener('click', function() { clearCompose(); showScreen('messages'); });
 $('send-btn').addEventListener('click', function() { sendMessage(); });
+$('kbd-dismiss-btn').addEventListener('click', function() { showScreen('messages'); });
 
 guildListEl.addEventListener('click', function(e) {
   const item = e.target.closest('.guild-item');
@@ -1016,7 +1151,117 @@ channelListEl.addEventListener('click', function(e) {
   if (!isNaN(idx) && channels[idx]) { selectedIdx = idx; openChannel(channels[idx]); }
 });
 
-// ── 22. Landscape rotation ────────────────────────────────────────────────────
+// ── 22. Emoji picker ─────────────────────────────────────────────────────────
+(function() {
+  const EMOJIS = [
+    '👍','👎','❤️','😂','😮','😢','😡','🔥','✅','👀','🎉','💯',
+    '😊','😎','🤔','😅','😭','🥲','🤣','😍','😤','🤯','😴','🥳',
+    '🙏','👋','💪','🤝','👏','🙌','⭐','💀','💥','🏆','🎯','💩',
+    '🫡','🫠','🐐','🍕','❓','💬','🎵','🎮','📸','🤖','👑','🌟',
+  ];
+  const picker   = document.getElementById('emoji-picker');
+  const backdrop = document.getElementById('emoji-backdrop');
+  const grid     = document.getElementById('emoji-grid');
+
+  grid.innerHTML = EMOJIS.map(e => `<button class="emoji-btn" data-e="${e}">${e}</button>`).join('');
+
+  let emojiMode  = null;
+  let reactMsgId = null;
+
+  window.openEmojiPicker = function(mode, msgId) {
+    emojiMode  = mode;
+    reactMsgId = msgId || null;
+    picker.classList.add('open');
+    backdrop.classList.add('open');
+    picker.scrollTop = 0;
+  };
+
+  function closePicker() {
+    picker.classList.remove('open');
+    backdrop.classList.remove('open');
+    emojiMode  = null;
+    reactMsgId = null;
+  }
+
+  backdrop.addEventListener('click', closePicker);
+
+  grid.addEventListener('click', function(e) {
+    const btn = e.target.closest('.emoji-btn');
+    if (!btn) return;
+    const emoji = btn.dataset.e;
+    if (emojiMode === 'insert') {
+      insertAtCursor(emoji);
+    } else if (emojiMode === 'react' && reactMsgId) {
+      const msgId = reactMsgId;
+      closePicker();
+      api('/channels/' + currentChannel.id + '/messages/' + msgId + '/react', {
+        method: 'POST', body: JSON.stringify({ emoji }),
+      }).then(function() { addReactionToMessage(msgId, emoji); })
+        .catch(function(err) { showToast('React: ' + (err && err.message || 'failed')); });
+      return;
+    }
+    closePicker();
+  });
+
+  // Long-press on message bubble to react
+  let lpTimer     = null;
+  let lpTriggered = false;
+
+  messageListEl.addEventListener('touchstart', function(e) {
+    const row = e.target.closest('.msg-row[data-msgid]');
+    if (!row || e.target.closest('.audio-player')) return;
+    const msgId = row.dataset.msgid;
+    if (!msgId || !/^\d+$/.test(msgId)) return;
+    lpTriggered = false;
+    lpTimer = setTimeout(function() {
+      lpTriggered = true;
+      openEmojiPicker('react', msgId);
+    }, 600);
+  }, { passive: true });
+
+  messageListEl.addEventListener('touchmove',  function() { clearTimeout(lpTimer); lpTimer = null; }, { passive: true });
+  messageListEl.addEventListener('touchend',   function() { clearTimeout(lpTimer); lpTimer = null; }, { passive: true });
+  messageListEl.addEventListener('touchcancel',function() { clearTimeout(lpTimer); lpTimer = null; }, { passive: true });
+
+  // Suppress click→reply when long-press was the intent
+  messageListEl.addEventListener('click', function(e) {
+    if (lpTriggered) { lpTriggered = false; e.stopImmediatePropagation(); }
+  }, true);
+})();
+
+// ── 23. Audio playback ───────────────────────────────────────────────────────
+(function() {
+  let activeAudio = null;
+  let activePlayer = null;
+
+  function stopCurrent() {
+    if (activeAudio) { activeAudio.pause(); activeAudio = null; }
+    if (activePlayer) { activePlayer.classList.remove('playing'); activePlayer.querySelector('.audio-play-btn').textContent = '▶'; activePlayer = null; }
+  }
+
+  messageListEl.addEventListener('click', function(e) {
+    const player = e.target.closest('.audio-player');
+    if (!player) return;
+    e.stopPropagation();
+    const url = player.dataset.url;
+    if (activePlayer === player) {
+      if (activeAudio.paused) { activeAudio.play(); player.querySelector('.audio-play-btn').textContent = '⏸'; }
+      else { activeAudio.pause(); player.querySelector('.audio-play-btn').textContent = '▶'; }
+      return;
+    }
+    stopCurrent();
+    const audio = new Audio(url);
+    activeAudio  = audio;
+    activePlayer = player;
+    player.classList.add('playing');
+    player.querySelector('.audio-play-btn').textContent = '⏸';
+    audio.play().catch(() => { stopCurrent(); showToast('Cannot play audio'); });
+    audio.addEventListener('ended', stopCurrent);
+    audio.addEventListener('error', function() { stopCurrent(); showToast('Audio error'); });
+  });
+})();
+
+// ── 24. Landscape rotation ────────────────────────────────────────────────────
 const _appEl = document.getElementById('app');
 let _usingOsRotation = false;
 
@@ -1081,7 +1326,7 @@ async function setLandscape(on) {
   }
 })();
 
-// ── 23. Landscape touch-scroll remapping ──────────────────────────────────────
+// ── 25. Landscape touch-scroll remapping ──────────────────────────────────────
 (function() {
   let touchStartX = 0;
 
@@ -1106,7 +1351,7 @@ async function setLandscape(on) {
   }, { passive: false });
 })();
 
-// ── 24. Init ──────────────────────────────────────────────────────────────────
+// ── 26. Init ──────────────────────────────────────────────────────────────────
 (async function init() {
   await loadGuilds();
   connectWS();

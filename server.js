@@ -64,11 +64,31 @@ function refreshGuildCache(guildId) {
   channelCache.set(guildId, channels);
 }
 
+function resolveMentions(msg) {
+  let content = msg.content || '';
+  msg.mentions.users.forEach(user => {
+    const member = msg.guild?.members.cache.get(user.id);
+    const name = member?.displayName || user.username;
+    content = content.replace(new RegExp(`<@!?${user.id}>`, 'g'), `@${name}`);
+  });
+  msg.mentions.channels?.forEach(ch => {
+    content = content.replace(new RegExp(`<#${ch.id}>`, 'g'), `#${ch.name}`);
+  });
+  msg.mentions.roles?.forEach(role => {
+    content = content.replace(new RegExp(`<@&${role.id}>`, 'g'), `@${role.name}`);
+  });
+  return content;
+}
+
 function formatMessage(msg) {
   const attachments = [...msg.attachments.values()];
   const images = attachments
     .filter(a => a.contentType?.startsWith('image/') || /\.(jpg|jpeg|png|gif|webp)$/i.test(a.name || ''))
     .map(a => a.url);
+
+  const audioFiles = attachments
+    .filter(a => a.contentType?.startsWith('audio/') || /\.(mp3|ogg|wav|webm|m4a|flac)$/i.test(a.name || ''))
+    .map(a => ({ url: a.url, name: a.name || 'audio' }));
 
   // Whitelist known notification types — Reply (19/'Reply'), slash commands etc. are normal messages
   const name = msg.member?.displayName || msg.author.username;
@@ -98,7 +118,7 @@ function formatMessage(msg) {
     author:        msg.member?.displayName || msg.author.username,
     authorId:      msg.author.id,
     avatarURL:     msg.author.displayAvatarURL({ size: 32, extension: 'webp' }),
-    content:       msg.content,
+    content:       resolveMentions(msg),
     timestamp:     msg.createdTimestamp,
     isOwn:         msg.author.id === client.user.id,
     mentionsMe:    msg.mentions.users.has(client.user.id),
@@ -106,7 +126,8 @@ function formatMessage(msg) {
     systemContent,
     reactions,
     replyTo:       null, // populated async by buildMessage
-    hasAudio:      attachments.some(a => a.contentType?.startsWith('audio/')),
+    hasAudio:      audioFiles.length > 0,
+    audioFiles,
     images,
     embeds,
   };
@@ -201,6 +222,19 @@ app.post('/channels/:id/send', authMiddleware, async (req, res) => {
     const sent = await channel.send(msgOptions);
     res.json({ ok: true, message: await buildMessage(sent) });
   } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/channels/:channelId/messages/:messageId/react', authMiddleware, async (req, res) => {
+  const { emoji } = req.body;
+  const cleanEmoji = (emoji || '').replace(/[️︎]/g, '');
+  if (!cleanEmoji) return res.status(400).json({ error: 'emoji required' });
+  try {
+    const channel = await client.channels.fetch(req.params.channelId);
+    if (!channel || !GUILD_IDS.includes(channel.guildId)) return res.status(404).json({ error: 'Not found' });
+    const message = await channel.messages.fetch(req.params.messageId);
+    await message.react(cleanEmoji);
+    res.json({ ok: true });
+  } catch (err) { console.error('react error:', err.message); res.status(500).json({ error: err.message }); }
 });
 
 const server = createServer(app);

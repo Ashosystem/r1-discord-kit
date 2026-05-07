@@ -1,12 +1,9 @@
 {
-  "name": "r1-discord-kit",
+  "name": "r1-discord",
   "version": "1.0.0",
   "type": "module",
   "main": "server.js",
-  "scripts": {
-    "start": "node server.js",
-    "setup": "node setup.js"
-  },
+  "scripts": { "start": "node server.js" },
   "dependencies": {
     "cors": "^2.8.5",
     "discord.js": "^14.16.3",
