@@ -87,8 +87,12 @@ function formatMessage(msg) {
     .map(a => a.url);
 
   const audioFiles = attachments
-    .filter(a => a.contentType?.startsWith('audio/') || /\.(mp3|ogg|wav|webm|m4a|flac)$/i.test(a.name || ''))
+    .filter(a => a.contentType?.startsWith('audio/') || /\.(mp3|ogg|wav|m4a|flac)$/i.test(a.name || ''))
     .map(a => ({ url: a.url, name: a.name || 'audio' }));
+
+  const videoFiles = attachments
+    .filter(a => a.contentType?.startsWith('video/') || /\.(mp4|webm|mov|avi|mkv)$/i.test(a.name || ''))
+    .map(a => ({ url: a.url, name: a.name || 'video' }));
 
   // Whitelist known notification types — Reply (19/'Reply'), slash commands etc. are normal messages
   const name = msg.member?.displayName || msg.author.username;
@@ -128,6 +132,7 @@ function formatMessage(msg) {
     replyTo:       null, // populated async by buildMessage
     hasAudio:      audioFiles.length > 0,
     audioFiles,
+    videoFiles,
     images,
     embeds,
   };

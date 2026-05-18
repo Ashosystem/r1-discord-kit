@@ -374,6 +374,14 @@ body.in-landscape #compose-history { display: none; }
 .audio-play-btn {
   font-size: 13px; flex-shrink: 0; pointer-events: none;
 }
+.video-player {
+  max-width: 100%;
+  border-radius: 5px;
+  margin-top: 3px;
+  display: block;
+  background: #000;
+}
+
 .audio-file-name {
   font-size: 10px; color: var(--dim);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
@@ -769,6 +777,9 @@ function bubbleHtml(m, prev, idx) {
   const audioHtml = (m.audioFiles || []).map((af, ai) =>
     `<div class="audio-player" data-url="${escapeHtml(af.url)}" data-ai="${ai}"><span class="audio-play-btn">▶</span><span class="audio-file-name">${escapeHtml(af.name.slice(0, 28))}</span></div>`
   ).join('');
+  const videoHtml = (m.videoFiles || []).map(vf =>
+    `<video class="video-player" src="${escapeHtml(vf.url)}" controls playsinline preload="metadata"></video>`
+  ).join('');
   const reactHtml = (m.reactions || []).length
     ? `<div class="msg-reactions">${m.reactions.map(r => `<span class="msg-reaction">${escapeHtml(r.emoji)} ${r.count}</span>`).join('')}</div>`
     : '';
@@ -779,6 +790,7 @@ function bubbleHtml(m, prev, idx) {
     + (textBody ? `<div>${textBody}</div>` : '')
     + embedsHtml
     + audioHtml
+    + videoHtml
     + imgs
     + reactHtml
     + `<div class="message-time">${relativeTime(m.timestamp)}</div></div>`;
